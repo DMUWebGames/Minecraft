@@ -1,0 +1,19 @@
+body{   
+    margin: 0;
+    padding: 0;
+    /* On utilise grid pour centrer le canvas au milieu de l'écran */
+    display :grid;
+    place-items: center;
+    min-height: 100svh;
+    background-color: #333; /* une page grise */
+}
+
+canvas{
+    background-color: yellow;
+    
+    /* j'initialise le canvas à faire toute la taille de la fenêtre visible  */
+    width: 100vw;
+    height: 100vh;
+
+    display: block; 
+}
