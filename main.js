@@ -18,6 +18,8 @@ async function main() {
 
     // Créer un canvas pour le rendu
     const canvas = document.getElementById('webgpu-canvas');
+    canvas.width = document.body.clientWidth;
+    canvas.height = document.body.clientHeight;
     const context = canvas.getContext('webgpu');
     const format = navigator.gpu.getPreferredCanvasFormat();
 
@@ -196,7 +198,15 @@ async function main() {
         const mvpMatrix = glMatrix.mat4.create();
 
         // A. Modèle : Faire tourner le cube
-        glMatrix.mat4.rotateY(modelMatrix, modelMatrix, time);
+
+        console.log(keys);
+        yAngle += (keys.ArrowRight - keys.ArrowLeft) * 0.1;
+        xAngle += (keys.ArrowDown - keys.ArrowUp) * 0.1;
+
+        
+        glMatrix.mat4.rotateY(modelMatrix, modelMatrix, yAngle);
+        glMatrix.mat4.rotateX(modelMatrix, modelMatrix, xAngle);
+        // glMatrix.mat4.rotateX(modelMatrix, modelMatrix, time);
 
         // B. Vue : Reculer la caméra pour voir le cube (Z = -5)
         glMatrix.mat4.translate(viewMatrix, viewMatrix, [0, 0, -5]);
@@ -219,7 +229,7 @@ async function main() {
         const renderPass = commandEncoder.beginRenderPass({
             colorAttachments: [{
                 view: textureView,
-                clearValue: { r: 0.1, g: 0.2, b: 0.3, a: 1.0 },
+                clearValue: { r: 0.1, g: 0.1, b: 0.1, a: 1.0 },
                 loadOp: 'clear',
                 storeOp: 'store',
             }],
@@ -243,5 +253,12 @@ async function main() {
     
     frame();
 }
+
+let xAngle = 0;
+let yAngle = 0;
+
+const keys = {ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false};
+window.addEventListener("keydown", ev => { keys[ev.key] = true; });
+window.addEventListener("keyup", ev => { keys[ev.key] = false; });
 
 main();
