@@ -1,4 +1,4 @@
-//import { Chunk } from './js/chunk.js';
+import { Chunk } from './js/chunk.js';
 
 
 // --- VARIABLES GLOBALES ---
@@ -40,7 +40,22 @@ async function main() {
     context.configure({ device, format });
 
     // II. Géométrie (Cube)
-    const vertices = new Float32Array([
+    const world = new Chunk();
+    
+    // On ajoute le cube central (le joueur est en 0,1,5, le cube est en 0,0,0)
+    world.addCube(0, 0, 0);
+    
+    // On ajoute quelques cubes autour pour faire un décor
+    world.addCube(2, 0, 0);
+    world.addCube(-2, 0, 0);
+    world.addCube(0, 2, 0); // Un cube en hauteur
+    
+    // On génère un sol (optionnel : décommente la ligne suivante pour avoir un sol)
+    world.generateFloor(100, 100); 
+
+    // On construit le mesh final
+    const vertices = world.buildMesh();
+    /*const vertices = new Float32Array([
         // Face avant (Rouge) - Le cube sera centré en 0,0,0
         -1, -1,  1, 1, 0, 0,  1, -1,  1, 1, 0, 0,  1,  1,  1, 1, 0, 0, -1, -1,  1, 1, 0, 0,  1,  1,  1, 1, 0, 0, -1,  1,  1, 1, 0, 0,
         // Face arrière (Bleu)
@@ -53,7 +68,7 @@ async function main() {
          1, -1, -1, 0, 1, 1,  1,  1, -1, 0, 1, 1,  1,  1,  1, 0, 1, 1,  1, -1, -1, 0, 1, 1,  1,  1,  1, 0, 1, 1,  1, -1,  1, 0, 1, 1,
         // Face gauche (Magenta)
         -1, -1, -1, 1, 0, 1, -1, -1,  1, 1, 0, 1, -1,  1,  1, 1, 0, 1, -1, -1, -1, 1, 0, 1, -1,  1,  1, 1, 0, 1, -1,  1, -1, 1, 0, 1,
-    ]);
+    ]);*/
 
     const vertexBuffer = device.createBuffer({
         size: vertices.byteLength,
@@ -210,7 +225,7 @@ async function main() {
         renderPass.setPipeline(pipeline);
         renderPass.setBindGroup(0, bindGroup);
         renderPass.setVertexBuffer(0, vertexBuffer);
-        renderPass.draw(36); // Juste le cube
+        renderPass.draw(vertices.length / 6); // Juste le cube
         renderPass.end();
 
         device.queue.submit([commandEncoder.finish()]);
