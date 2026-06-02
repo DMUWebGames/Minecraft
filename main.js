@@ -1,4 +1,8 @@
 
+// varibales globales pour la caméra
+let camRotationX = 0;
+let camRotationY = 0;
+
 
 // I. Initialisation
 async function main() {
@@ -18,6 +22,10 @@ async function main() {
 
     // Créer un canvas pour le rendu
     const canvas = document.getElementById('webgpu-canvas');
+    const canvasWidth = window.innerWidth;
+    const canvasHeight = window.innerHeight;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
     const context = canvas.getContext('webgpu');
     const format = navigator.gpu.getPreferredCanvasFormat();
 
@@ -184,6 +192,17 @@ async function main() {
         entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
     });
     
+    // On écoute les flèches du clavier
+    window.addEventListener("keydown", (event) => {
+        const speed = 0.05; // Vitesse de rotation de la caméra
+        switch (event.key) {
+            case "ArrowLeft": camRotationY -= speed; break;
+            case "ArrowRight": camRotationY += speed; break;
+            case "ArrowUp": camRotationX -= speed; break; // Regarder en haut/bas
+            case "ArrowDown": camRotationX += speed; break;
+        }
+    });
+
     // VI. Rendu
     function frame() {
         const time = Date.now() / 1000;
@@ -196,7 +215,8 @@ async function main() {
         const mvpMatrix = glMatrix.mat4.create();
 
         // A. Modèle : Faire tourner le cube
-        glMatrix.mat4.rotateY(modelMatrix, modelMatrix, time);
+        glMatrix.mat4.rotateY(modelMatrix, modelMatrix, camRotationY);
+        glMatrix.mat4.rotateX(modelMatrix, modelMatrix, camRotationX);
 
         // B. Vue : Reculer la caméra pour voir le cube (Z = -5)
         glMatrix.mat4.translate(viewMatrix, viewMatrix, [0, 0, -5]);
