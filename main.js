@@ -1,28 +1,10 @@
 import { Chunk } from './js/chunk.js';
-
+import { BLOCK } from './js/blocks.js';
+import { Player } from './js/player.js'; 
 
 // --- VARIABLES GLOBALES ---
-// Position du joueur dans le monde
-let camX = 0;
-let camY = 1; // On commence un peu en hauteur (comme un joueur)
-let camZ = 5;
-
-// Orientation de la tête (Angles)
-let camYaw = 0;   // Rotation gauche/droite
-let camPitch = 0; // Rotation haut/bas
-
-// Rotation du cube (pour ZQSD qui tourne le cube si c'est ça que tu veux, 
-// mais attention dans ton texte tu dis que ZQSD déplace la caméra. 
-// Je suis ton texte : ZQSD = Déplacement caméra)
-
-// Si tu veux que ZQSD tourne le cube, il faut des variables pour le cube.
-// Mais je crois que tu veux ZQSD = Déplacer le joueur.
-// Je vais faire : ZQSD = Déplacer Joueur, Flèches = Tourner Tête.
-// Le cube reste FIXE (c'est un décor).
-
-let cubeRotationX = 0; // Si tu veux quand même pouvoir tourner le cube avec d'autres touches
-let cubeRotationY = 0;
-
+const player = new Player();
+const keys = {};
 
 // I. Initialisation
 async function main() {
@@ -39,21 +21,16 @@ async function main() {
     const format = navigator.gpu.getPreferredCanvasFormat();
     context.configure({ device, format });
 
-    // II. Géométrie (Cube)
+    // II. Géométrie (Monde)
     const world = new Chunk();
     
-    // On ajoute le cube central (le joueur est en 0,1,5, le cube est en 0,0,0)
-    world.addCube(0, 0, 0);
-    
-    // On ajoute quelques cubes autour pour faire un décor
-    world.addCube(2, 0, 0);
-    world.addCube(-2, 0, 0);
-    world.addCube(0, 2, 0); // Un cube en hauteur
-    
-    // On génère un sol (optionnel : décommente la ligne suivante pour avoir un sol)
-    world.generateFloor(100, 100); 
+    // On génère le terrain (Herbe + Terre + quelques blocs)
+    //Floor -> Terrain
+     world.generateFloor(30, 30); 
 
-    // On construit le mesh final
+    // Exemple d'ajout manuel si tu veux
+    // world.setBlock(5, 5, 5, BLOCK.WOOD); 
+
     const vertices = world.buildMesh();
     /*const vertices = new Float32Array([
         // Face avant (Rouge) - Le cube sera centré en 0,0,0
@@ -133,50 +110,35 @@ async function main() {
 
     // --- CONTRÔLES FPS ---
     window.addEventListener("keydown", (event) => {
-        const moveSpeed = 0.2;
+        keys[event.key.toLowerCase()] = true;
+        if (event.key === ' ') keys[' '] = true;
+
+        // Flèches = Rotation caméra
         const turnSpeed = 0.05;
-
-        // 1. FLÈCHES = ORIENTATION (Tourner la tête)
         switch (event.key) {
-            case "ArrowLeft":  camYaw -= turnSpeed; break;   // Tourner la tête à gauche
-            case "ArrowRight": camYaw += turnSpeed; break;   // Tourner la tête à droite
-            case "ArrowUp":    camPitch -= turnSpeed; break; // Lever la tête
-            case "ArrowDown":  camPitch += turnSpeed; break; // Baisser la tête
-        }
-
-        // 2. ZQSD = DÉPLACEMENT (Bouger le corps relativement à où on regarde)
-        // On calcule la direction "Devant" et "Droite" grâce à la trigonométrie
-        
-        // Vecteur "Devant" (Forward) sur le plan XZ (on ne vole pas ici)
-        const forwardX = Math.sin(camYaw);
-        const forwardZ = Math.cos(camYaw);
-        
-        // Vecteur "Droite" (Right) (perpendiculaire au vecteur devant)
-        const rightX = Math.sin(camYaw + Math.PI / 2);
-        const rightZ = Math.cos(camYaw + Math.PI / 2);
-
-        switch (event.key.toLowerCase()) {
-            case "z": // Avancer
-                camX -= forwardX * moveSpeed;
-                camZ -= forwardZ * moveSpeed;
-                break;
-            case "s": // Reculer
-                camX += forwardX * moveSpeed;
-                camZ += forwardZ * moveSpeed;
-                break;
-            case "q": // Gauche (Strafe)
-                camX -= rightX * moveSpeed;
-                camZ -= rightZ * moveSpeed;
-                break;
-            case "d": // Droite (Strafe)
-                camX += rightX * moveSpeed;
-                camZ += rightZ * moveSpeed;
-                break;
+            case "ArrowRight":  player.yaw -= turnSpeed; break;
+            case "ArrowLeft": player.yaw += turnSpeed; break;
+            case "ArrowDown":  player.pitch -= turnSpeed; break;
+            case "ArrowUp":  player.pitch += turnSpeed; break;
         }
     });
 
+    window.addEventListener("keyup", (event) => {
+        keys[event.key.toLowerCase()] = false;
+        if (event.key === ' ') keys[' '] = false;
+    });
+
     // V. Rendu
-    function frame() {
+    let lastTime = 0;
+    function frame(time) {
+
+        if (lastTime === 0) lastTime = time; // Initialisation du temps
+        const dt = (time - lastTime) / 1000;
+        lastTime = time;
+
+        // Mettre à jour la logique du jeu (mouvement du joueur, etc.)
+        player.update(dt, keys, world);
+
         const modelMatrix = glMatrix.mat4.create(); // Le cube est fixe dans le monde
         const viewMatrix = glMatrix.mat4.create();
         const projectionMatrix = glMatrix.mat4.create();
@@ -184,14 +146,18 @@ async function main() {
 
         // --- CALCUL DE LA VUE (FPS) ---
         // 1. Calculer le point cible (Target) : Position + Direction du regard
-        // La direction du regard dépend du Pitch (haut/bas) et Yaw (gauche/droite)
-        const targetX = camX - Math.sin(camYaw) * Math.cos(camPitch);
-        const targetY = camY + Math.sin(camPitch); // On ajoute le Y pour regarder haut/bas
-        const targetZ = camZ - Math.cos(camYaw) * Math.cos(camPitch);
+        // Calcul Vue (Position = Yeux du joueur)
+        const eyeX = player.x;
+        const eyeY = player.y + player.PLAYER_HEIGHT;
+        const eyeZ = player.z;
+
+        const targetX = eyeX - Math.sin(player.yaw) * Math.cos(player.pitch);
+        const targetY = eyeY + Math.sin(player.pitch);
+        const targetZ = eyeZ - Math.cos(player.yaw) * Math.cos(player.pitch);
 
         // 2. Créer la matrice de vue
         // Oeil : (camX, camY, camZ) -> Cible : (targetX, targetY, targetZ)
-        glMatrix.mat4.lookAt(viewMatrix, [camX, camY, camZ], [targetX, targetY, targetZ], [0, 1, 0]);
+        glMatrix.mat4.lookAt(viewMatrix, [eyeX, eyeY, eyeZ], [targetX, targetY, targetZ], [0, 1, 0]);
 
         // --- PROJECTION ---
         const aspect = canvas.width / canvas.height;
@@ -231,7 +197,7 @@ async function main() {
         device.queue.submit([commandEncoder.finish()]);
         requestAnimationFrame(frame);
     }
-    frame();
+    requestAnimationFrame(frame);
 }
 
 main();
