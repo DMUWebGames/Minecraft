@@ -5,6 +5,7 @@ import { Player } from './js/player.js';
 // --- VARIABLES GLOBALES ---
 const player = new Player();
 const keys = {};
+let selectedBlock = BLOCK.DIRT; // Par défaut, on pose de l'herbe
 
 // I. Initialisation
 async function main() {
@@ -31,7 +32,7 @@ async function main() {
     // Exemple d'ajout manuel si tu veux
     // world.setBlock(5, 5, 5, BLOCK.WOOD); 
 
-    const vertices = world.buildMesh();
+    let vertices = world.buildMesh();
     /*const vertices = new Float32Array([
         // Face avant (Rouge) - Le cube sera centré en 0,0,0
         -1, -1,  1, 1, 0, 0,  1, -1,  1, 1, 0, 0,  1,  1,  1, 1, 0, 0, -1, -1,  1, 1, 0, 0,  1,  1,  1, 1, 0, 0, -1,  1,  1, 1, 0, 0,
@@ -47,7 +48,7 @@ async function main() {
         -1, -1, -1, 1, 0, 1, -1, -1,  1, 1, 0, 1, -1,  1,  1, 1, 0, 1, -1, -1, -1, 1, 0, 1, -1,  1,  1, 1, 0, 1, -1,  1, -1, 1, 0, 1,
     ]);*/
 
-    const vertexBuffer = device.createBuffer({
+    let vertexBuffer = device.createBuffer({
         size: vertices.byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
@@ -108,7 +109,7 @@ async function main() {
         entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
     });
 
-    // --- CONTRÔLES FPS ---
+    // CONTRÔLES FPS 
     window.addEventListener("keydown", (event) => {
         keys[event.key.toLowerCase()] = true;
         if (event.key === ' ') keys[' '] = true;
@@ -121,12 +122,61 @@ async function main() {
             case "ArrowDown":  player.pitch -= turnSpeed; break;
             case "ArrowUp":  player.pitch += turnSpeed; break;
         }
+
+        // Choix des blocs avec les touches 1, 2, 3
+        switch(event.key) {
+            case '1': selectedBlock = BLOCK.GRASS; console.log("Block : Herbe"); break;
+            case '2': selectedBlock = BLOCK.DIRT; console.log("Block : Terre"); break;
+            case '3': selectedBlock = BLOCK.STONE; console.log("Block : Pierre"); break;
+            case '4': selectedBlock = BLOCK.WOOD; console.log("Block : Bois"); break;
+        }
     });
 
     window.addEventListener("keyup", (event) => {
         keys[event.key.toLowerCase()] = false;
         if (event.key === ' ') keys[' '] = false;
     });
+    
+    // Souris pour casser et poser des blocs
+    canvas.addEventListener("mousedown", (event) => {
+        const target = player.raycast(world);
+        if (target) {
+            let modified = false;
+
+            if (event.button === 0) {
+                // Casser le bloc
+                world.setBlock(target.x, target.y, target.z, BLOCK.AIR);
+                modified = true;
+            } else if (event.button === 2) {
+                // Poser un bloc de bois devant le joueur
+                let px = target.x;
+                let py = target.y + 1;
+                let pz = target.z;
+
+                if (world.getBlock(px, py, pz) === BLOCK.AIR) {
+                    world.setBlock(px, py, pz, selectedBlock);
+                    modified = true;
+                }
+            }
+            // Rebuild du mesh après modification
+            if (modified) {
+                const newVertices = world.buildMesh();
+
+                if (newVertices.byteLength > vertexBuffer.size) {
+                    vertexBuffer.destroy();
+                    vertexBuffer = device.createBuffer({
+                        size: newVertices.byteLength,
+                        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                    });
+                }
+                device.queue.writeBuffer(vertexBuffer, 0, newVertices);
+                vertices = newVertices; // Mettre à jour les vertices pour le rendu
+            }
+        }
+    });
+
+    // Empêcher le menu contextuel du clic droit sur le canvas
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
     // V. Rendu
     let lastTime = 0;
@@ -144,8 +194,7 @@ async function main() {
         const projectionMatrix = glMatrix.mat4.create();
         const mvpMatrix = glMatrix.mat4.create();
 
-        // --- CALCUL DE LA VUE (FPS) ---
-        // 1. Calculer le point cible (Target) : Position + Direction du regard
+        // CALCUL DE LA VUE (FPS)
         // Calcul Vue (Position = Yeux du joueur)
         const eyeX = player.x;
         const eyeY = player.y + player.PLAYER_HEIGHT;
@@ -155,21 +204,20 @@ async function main() {
         const targetY = eyeY + Math.sin(player.pitch);
         const targetZ = eyeZ - Math.cos(player.yaw) * Math.cos(player.pitch);
 
-        // 2. Créer la matrice de vue
-        // Oeil : (camX, camY, camZ) -> Cible : (targetX, targetY, targetZ)
+        // La caméra regarde vers le point cible
         glMatrix.mat4.lookAt(viewMatrix, [eyeX, eyeY, eyeZ], [targetX, targetY, targetZ], [0, 1, 0]);
 
-        // --- PROJECTION ---
+        // PROJECTION
         const aspect = canvas.width / canvas.height;
         glMatrix.mat4.perspective(projectionMatrix, 1.0, aspect, 0.1, 100.0);
 
-        // --- MVP ---
+        // MVP
         glMatrix.mat4.multiply(mvpMatrix, projectionMatrix, viewMatrix);
         glMatrix.mat4.multiply(mvpMatrix, mvpMatrix, modelMatrix);
 
         device.queue.writeBuffer(uniformBuffer, 0, mvpMatrix);
 
-        // --- DESSIN ---
+        // DESSIN
         const commandEncoder = device.createCommandEncoder();
         const textureView = context.getCurrentTexture().createView();
 
