@@ -133,4 +133,32 @@ export class Player {
 
         return false; // Pas de collision
     }
+
+    raycast(world) {
+        const step = 0.1; // Précision du raycast
+        const maxDist = 5; // Distance maximale du raycast
+
+        // on part de la position des yeux du joueur
+        let x = this.x
+        let y = this.y + this.PLAYER_HEIGHT; // Part des yeux du joueur
+        let z = this.z;
+
+        // Direction du regard "same that in main.js"
+        const dirX = -Math.sin(this.yaw) * Math.cos(this.pitch);
+        const dirY = Math.sin(this.pitch);
+        const dirZ = -Math.cos(this.yaw) * Math.cos(this.pitch);
+
+        for (let d=0; d < maxDist; d += step) {
+            let checkX = x + dirX * d;
+            let checkY = Math.floor(y + dirY * d);
+            let checkZ = Math.floor(z + dirZ * d);
+
+            let block = world.getBlock(Math.floor(checkX), Math.floor(checkY), Math.floor(checkZ));
+            if (block !==0) {
+                return {x: Math.floor(checkX), y: Math.floor(checkY), z: Math.floor(checkZ)};
+            }
+        }
+        return null; // Rien trouvé
+        
+    }
 }
