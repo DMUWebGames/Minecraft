@@ -18,7 +18,7 @@ export class Player {
 
         //constantes physiques
         this.GRAVITY = 25;
-        this.JUMP_FORCE = 9;
+        this.JUMP_FORCE = 15;
         this.PLAYER_HEIGHT = 1.8; // Hauteur du joueur (pour collision)
     }
 

@@ -1,3 +1,4 @@
+//main.js - Point d'entrée du jeu
 import { Chunk } from './js/chunk.js';
 import { BLOCK } from './js/blocks.js';
 import { Player } from './js/player.js'; 
@@ -22,12 +23,62 @@ async function main() {
     const format = navigator.gpu.getPreferredCanvasFormat();
     context.configure({ device, format });
 
+    // CREATION DE LA TEXTURE (ATLAS) POUR LES BLOCS
+    // On crée un petit canvas 2D pour dessiner nos textures
+    const textureSize = 64; // Taille  l'image
+    const cellSize = 32;    // Taille d'une texture 
+
+    const textureCanvas = document.createElement('canvas');
+    //document.body.appendChild(textureCanvas); // Optionnel : pour voir le résultat
+    textureCanvas.width = textureSize;
+    textureCanvas.height = textureSize;
+    const ctx = textureCanvas.getContext('2d');
+
+    // Case (0,0) Herbe : Vert
+    ctx.fillStyle = '#3a9d23'; ctx.fillRect(0, 0, cellSize, cellSize);
+    // Case (1,0) Terre : Marron
+    ctx.fillStyle = '#8b5a2b'; ctx.fillRect(cellSize, 0, cellSize, cellSize);
+    // Case (0,1) Pierre : Gris
+    ctx.fillStyle = '#808080'; ctx.fillRect(0, cellSize, cellSize, cellSize);
+    // Case (1,1) Bois : Marron foncé
+    ctx.fillStyle = '#5c4033'; ctx.fillRect(cellSize, cellSize, cellSize, cellSize);
+    
+    // Optionnel : Ajouter du bruit pour faire moins "plat"
+    // (Tu peux ignorer cette boucle si tu veux des couleurs unies)
+    for(let k=0; k<500; k++) {
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillRect(Math.random()*textureSize, Math.random()*textureSize, 2, 2);
+        ctx.fillStyle = 'rgba(0,0,0,0.1)';
+        ctx.fillRect(Math.random()*textureSize, Math.random()*textureSize, 2, 2);
+    }
+
+    // Créer l'objet Texture WebGPU
+    const texture = device.createTexture({
+        size: [textureSize, textureSize],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    
+    // Copier l'image du canvas vers le GPU
+    const imageBitmap = await createImageBitmap(textureCanvas);
+    device.queue.copyExternalImageToTexture(
+        { source: imageBitmap },
+        { texture: texture },
+        [textureSize, textureSize]
+    );
+
+    // Créer le Sampler (comment le GPU lit la texture)
+    const sampler = device.createSampler({
+        magFilter: 'nearest', // 'nearest' garde le style pixel art (Minecraft)
+        minFilter: 'nearest',
+    });
+
     // II. Géométrie (Monde)
     const world = new Chunk();
     
     // On génère le terrain (Herbe + Terre + quelques blocs)
     //Floor -> Terrain
-     world.generateFloor(30, 30); 
+     world.generateFloor(70, 70); 
 
     // Exemple d'ajout manuel si tu veux
     // world.setBlock(5, 5, 5, BLOCK.WOOD); 
@@ -55,10 +106,10 @@ async function main() {
     device.queue.writeBuffer(vertexBuffer, 0, vertices);
 
     const vertexBufferLayout = {
-        arrayStride: 24,
+        arrayStride: 20, // 3 POS (12 bytes) + 2 UV (8 bytes) = 20 bytes par vertex
         attributes: [
-            { shaderLocation: 0, offset: 0, format: "float32x3" },
-            { shaderLocation: 1, offset: 12, format: "float32x3" }
+            { shaderLocation: 0, offset: 0, format: "float32x3" }, // Position
+            { shaderLocation: 1, offset: 12, format: "float32x2" } // UV
         ]
     };
 
@@ -66,24 +117,32 @@ async function main() {
     const shaderCode = `
         struct Uniforms { mvpMatrix: mat4x4<f32> };
         @binding(0) @group(0) var<uniform> uniforms: Uniforms;
+
+        // On remet la texture
+        @binding(1) @group(0) var textureSampler: sampler;
+        @binding(2) @group(0) var textureData: texture_2d<f32>;
+
         struct VertexInput {
             @location(0) position: vec3<f32>,
-            @location(1) color: vec3<f32>,
+            @location(1) uv: vec2<f32>,
         };
         struct VertexOutput {
             @builtin(position) position: vec4<f32>,
-            @location(0) color: vec3<f32>,
+            @location(0) uv: vec2<f32>,
         };
+        
         @vertex
         fn vertexMain(input: VertexInput) -> VertexOutput {
             var output: VertexOutput;
             output.position = uniforms.mvpMatrix * vec4<f32>(input.position, 1.0);
-            output.color = input.color;
+            output.uv = input.uv;
             return output;
         }
+
         @fragment
-        fn fragmentMain(@location(0) color: vec3<f32>) -> @location(0) vec4<f32> {
-            return vec4<f32>(color, 1.0);
+        fn fragmentMain(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
+            // On lit la texture
+            return textureSample(textureData, textureSampler, uv);
         }
     `;
     const shaderModule = device.createShaderModule({ code: shaderCode });
@@ -93,7 +152,7 @@ async function main() {
         layout: 'auto',
         vertex: { module: shaderModule, entryPoint: 'vertexMain', buffers: [vertexBufferLayout] },
         fragment: { module: shaderModule, entryPoint: 'fragmentMain', targets: [{ format }] },
-        primitive: { topology: 'triangle-list', cullMode: 'back' },
+        primitive: { topology: 'triangle-list', cullMode: 'none' },
         depthStencil: { depthWriteEnabled: true, depthCompare: 'less', format: 'depth24plus' },
     });
 
@@ -106,7 +165,11 @@ async function main() {
     const uniformBuffer = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
-        entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+        entries: [
+            { binding: 0, resource: { buffer: uniformBuffer } },
+            { binding: 1, resource: sampler },      // On remet le sampler
+            { binding: 2, resource: texture.createView() } // On remet la texture
+        ],
     });
 
     // CONTRÔLES FPS 
@@ -239,7 +302,7 @@ async function main() {
         renderPass.setPipeline(pipeline);
         renderPass.setBindGroup(0, bindGroup);
         renderPass.setVertexBuffer(0, vertexBuffer);
-        renderPass.draw(vertices.length / 6); // Juste le cube
+        renderPass.draw(vertices.length / 5); // Juste le cube
         renderPass.end();
 
         device.queue.submit([commandEncoder.finish()]);
