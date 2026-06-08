@@ -240,11 +240,11 @@ async function main() {
 
         // Choix des blocs avec les touches 1, 2, 3
         switch(event.key) {
-            case '1': selectedBlock = BLOCK.GRASS; console.log("Block : Herbe"); break;
-            case '2': selectedBlock = BLOCK.DIRT; console.log("Block : Terre"); break;
-            case '3': selectedBlock = BLOCK.STONE; console.log("Block : Pierre"); break;
-            case '4': selectedBlock = BLOCK.WOOD; console.log("Block : Bois"); break;
-            case '5': selectedBlock = BLOCK.LAMP; console.log("Block : Lampe"); break;
+            case '1': selectedBlock = BLOCK.GRASS; updateHotbar(1); break;
+            case '2': selectedBlock = BLOCK.DIRT; updateHotbar(2); break;
+            case '3': selectedBlock = BLOCK.STONE; updateHotbar(3); break;
+            case '4': selectedBlock = BLOCK.WOOD; updateHotbar(4); break;
+            case '5': selectedBlock = BLOCK.LAMP; updateHotbar(5); break;
         }
     });
 
@@ -384,7 +384,14 @@ async function main() {
 
         device.queue.writeBuffer(lightsBuffer, 0, data);
     }
+
+    function updateHotbar(slotNumber) {
+        document.querySelectorAll('.slot').forEach(s => s.classList.remove('active'));
+        document.getElementById(`slot-${slotNumber}`).classList.add('active');
+    }
+
     updateLights();
+    updateHotbar(2);
     requestAnimationFrame(frame);
     
 }
