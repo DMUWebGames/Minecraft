@@ -106,10 +106,11 @@ async function main() {
     device.queue.writeBuffer(vertexBuffer, 0, vertices);
 
     const vertexBufferLayout = {
-        arrayStride: 20, // 3 POS (12 bytes) + 2 UV (8 bytes) = 20 bytes par vertex
+        arrayStride: 32, // 3 POS (12 bytes) + 2 UV (8 bytes) + 3 Normale (12 bytes) = 32 bytes par vertex
         attributes: [
             { shaderLocation: 0, offset: 0, format: "float32x3" }, // Position
-            { shaderLocation: 1, offset: 12, format: "float32x2" } // UV
+            { shaderLocation: 1, offset: 12, format: "float32x2" }, // UV
+            { shaderLocation: 2, offset: 20, format: "float32x3" } // Normale (optionnel)
         ]
     };
 
@@ -122,13 +123,30 @@ async function main() {
         @binding(1) @group(0) var textureSampler: sampler;
         @binding(2) @group(0) var textureData: texture_2d<f32>;
 
+        //struct d'une lampe
+        struct Light {
+            pos: vec3<f32>,
+            intensity: f32,
+        };
+
+        //Buffer des lampes (max 16)
+        struct LightsBuffer {
+            count: u32,
+            pad1: u32, pad2: u32, pad3: u32, // padding alignement
+            lights: array<Light, 16>,
+        };
+        @binding(3) @group(0) var<uniform> lightsData: LightsBuffer;
+
         struct VertexInput {
             @location(0) position: vec3<f32>,
             @location(1) uv: vec2<f32>,
+            @location(2) normal: vec3<f32>, // Optionnel : pour l'éclairage
         };
         struct VertexOutput {
             @builtin(position) position: vec4<f32>,
             @location(0) uv: vec2<f32>,
+            @location(1) normal: vec3<f32>,
+            @location(2) worldPos: vec3<f32>, // Position dans le monde pour l'éclairage
         };
         
         @vertex
@@ -136,13 +154,44 @@ async function main() {
             var output: VertexOutput;
             output.position = uniforms.mvpMatrix * vec4<f32>(input.position, 1.0);
             output.uv = input.uv;
+            output.normal = input.normal;
+            output.worldPos = input.position; // position monde
             return output;
         }
 
         @fragment
-        fn fragmentMain(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-            // On lit la texture
-            return textureSample(textureData, textureSampler, uv);
+        fn fragmentMain(@location(0) uv: vec2<f32>, @location(1) normal: vec3<f32>, @location(2) worldPos: vec3<f32>,) -> @location(0) vec4<f32> {
+
+        let texColor = textureSample(textureData, textureSampler, uv);
+
+        // Lumière ambiante
+        var totalLight = vec3<f32>(0.15, 0.15, 0.15); 
+
+        // Soleil (on le garde mais plus doux)
+        let sunDir = normalize(vec3<f32>(0.6, 1.0, 0.4));
+        let sunDiffuse = max(dot(normal, sunDir), 0.0);
+        totalLight += vec3<f32>(0.4, 0.4, 0.35) * sunDiffuse;
+
+        // Point lights (lampes)
+        for (var i: u32 = 0u; i < lightsData.count; i++) {
+            let light = lightsData.lights[i];
+            let toLight = light.pos - worldPos;
+            let dist = length(toLight);
+            let dir = normalize(toLight);
+
+            // Atténuation : plus on est loin, moins on reçoit
+            let attenuation = light.intensity / (1.0 + dist * dist);
+
+            // Diffuse
+            let diffuse = max(dot(normal, dir), 0.0);
+
+            // Couleur chaude orange pour les lampes
+            totalLight += vec3<f32>(1.0, 0.55, 0.1) * diffuse * attenuation;
+        }
+
+        // Clamp pour ne pas dépasser le blanc
+        let finalLight = clamp(totalLight, vec3<f32>(0.0), vec3<f32>(1.0));
+        return vec4<f32>(texColor.rgb * finalLight, texColor.a);
         }
     `;
     const shaderModule = device.createShaderModule({ code: shaderCode });
@@ -163,12 +212,15 @@ async function main() {
     });
 
     const uniformBuffer = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const lightsBuffer = device.createBuffer({ size: 272, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
     const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
         entries: [
             { binding: 0, resource: { buffer: uniformBuffer } },
             { binding: 1, resource: sampler },      // On remet le sampler
-            { binding: 2, resource: texture.createView() } // On remet la texture
+            { binding: 2, resource: texture.createView() }, // On remet la texture
+            { binding: 3, resource: { buffer: lightsBuffer } }
         ],
     });
 
@@ -192,6 +244,7 @@ async function main() {
             case '2': selectedBlock = BLOCK.DIRT; console.log("Block : Terre"); break;
             case '3': selectedBlock = BLOCK.STONE; console.log("Block : Pierre"); break;
             case '4': selectedBlock = BLOCK.WOOD; console.log("Block : Bois"); break;
+            case '5': selectedBlock = BLOCK.LAMP; console.log("Block : Lampe"); break;
         }
     });
 
@@ -234,6 +287,7 @@ async function main() {
                 }
                 device.queue.writeBuffer(vertexBuffer, 0, newVertices);
                 vertices = newVertices; // Mettre à jour les vertices pour le rendu
+                updateLights(); // Mettre à jour les lumières si nécessaire
             }
         }
     });
@@ -302,13 +356,37 @@ async function main() {
         renderPass.setPipeline(pipeline);
         renderPass.setBindGroup(0, bindGroup);
         renderPass.setVertexBuffer(0, vertexBuffer);
-        renderPass.draw(vertices.length / 5); // Juste le cube
+        renderPass.draw(vertices.length / 8); // Juste le cube
         renderPass.end();
 
         device.queue.submit([commandEncoder.finish()]);
         requestAnimationFrame(frame);
     }
+
+    function updateLights() {
+        const lights = world.getLightSources();
+        // 272 bytes : count(4) + padding(12) + 16 lights × (vec3 pos + intensity = 16 bytes)
+        const data = new ArrayBuffer(272);
+        const view = new DataView(data);
+
+        // count
+        view.setUint32(0, lights.length, true);
+        // padding (12 bytes) → on ne touche pas
+
+        // lampes
+        for (let i = 0; i < Math.min(lights.length, 16); i++) {
+            const offset = 16 + i * 16; // 16 bytes header + 16 bytes par lampe
+            view.setFloat32(offset + 0,  lights[i].x,  true);
+            view.setFloat32(offset + 4,  lights[i].y,  true);
+            view.setFloat32(offset + 8,  lights[i].z,  true);
+            view.setFloat32(offset + 12, 10.0,          true); // intensité
+        }
+
+        device.queue.writeBuffer(lightsBuffer, 0, data);
+    }
+    updateLights();
     requestAnimationFrame(frame);
+    
 }
 
 main();

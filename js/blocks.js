@@ -6,7 +6,8 @@ export const BLOCK = {
     GRASS: 1,  // Herbe
     DIRT: 2,   // Terre
     STONE: 3,  // Pierre
-    WOOD: 4    // Bois
+    WOOD: 4,    // Bois
+    LAMP: 5   // Lumière
 };
 
 // 2. Définition des couleurs associées
@@ -17,6 +18,7 @@ export function getBlockColor(blockId) {
         case BLOCK.DIRT:  return [0.6, 0.4, 0.2]; // Marron
         case BLOCK.STONE: return [0.5, 0.5, 0.5]; // Gris
         case BLOCK.WOOD:  return [0.6, 0.3, 0.1]; // Marron clair
+        case BLOCK.LAMP:  return [1.0, 1.0, 0.5]; // Jaune clair
         default:          return [1.0, 0.0, 1.0]; // Magenta (Erreur)
     }
 }
