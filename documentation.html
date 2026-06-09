@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebGPU Minecraft - Code Documentation</title>
+
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --text-color: #d4d4d4;
+            --header-bg: #252526;
+            --sidebar-bg: #333333;
+            --accent-color: #007acc;
+            --code-bg: #2d2d2d;
+            --border-color: #404040;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Times New Roman', Times, serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar Navigation */
+        nav {
+            width: 250px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        nav h2 {
+            color: var(--accent-color);
+            margin-top: 0;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        nav ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        nav li {
+            margin: 10px 0;
+        }
+
+        nav a {
+            color: var(--text-color);
+            text-decoration: none;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        nav a:hover {
+            color: var(--accent-color);
+        }
+
+        /* Main Content */
+        main {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            color: white;
+        }
+
+        h1 {
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            margin-top: 40px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        /* Code Blocks */
+        pre {
+            background-color: var(--code-bg);
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid var(--accent-color);
+            overflow-x: auto;
+            white-space: pre-wrap; /* Allows wrapping if needed, though pre is better for code */
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        code {
+            font-family: inherit;
+        }
+
+        .code-line {
+            display: block;
+        }
+
+        /* Explanation Sections */
+        .explanation {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            margin: 10px 0 20px 0;
+            border-radius: 4px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .explanation strong {
+            color: var(--accent-color);
+        }
+
+        /* Specific highlighting for shaders */
+        .shader-comment {
+            color: #6a9955;
+        }
+
+    </style>
+</head>
+<body>
+    <!-- Navigation Sidebar -->
+    <nav>
+        <h2>Project Files</h2>
+        <ul>
+            <li><a href="#main-js">main.js (Entry Point)</a></li>
+            <li><a href="#chunk-js">js/chunk.js (World Data)</a></li>
+            <li><a href="#player-js">js/player.js (Logic)</a></li>
+            <li><a href="#blocks-js">js/blocks.js (Definitions)</a></li>
+            <li><a href="#html-index">index.html (Structure)</a></li>
+            <li><a href="#css-style">style.css (UI)</a></li>
+        </ul>
+    </nav>
+
+
+    <!-- BLOCKS.JS -->
+        <section id="blocks-js">
+            <h2>js/blocks.js - Definitions</h2>
+            <pre><code>export const BLOCK = { AIR: 0, GRASS: 1, DIRT: 2, ... };
+                export function getBlockColor(blockId) { /* ... */ }</code></pre>
+            <div class="explanation">
+                <strong>Constants:</strong> A simple enum mapping readable names to IDs. <code>getBlockColor</code> is a fallback utility used in older versions or debugging, though the current system uses UVs/Textures.
+            </div>
+        </section>
+
+        <!-- INDEX.HTML -->
+        <section id="html-index">
+            <h2>index.html - Structure</h2>
+            <pre><code>&lt;canvas id="webgpu-canvas"&gt;&lt;/canvas&gt;
+                &lt;div id="crosshair"&gt;&lt;/div&gt;
+                &lt;div id="hotbar"&gt;...&lt;/div&gt;</code></pre>
+            <div class="explanation">
+                <strong>DOM Elements:</strong> <br>
+                - <strong>Canvas:</strong> The WebGPU render target. <br>
+                - <strong>Crosshair:</strong> A simple CSS-styled div centered on screen for aiming. <br>
+                - <strong>Hotbar:</strong> A UI overlay showing the currently selected block type.
+            </div>
+        </section>
+
+        <!-- STYLE.CSS -->
+        <section id="css-style">
+            <h2>style.css - Styling</h2>
+            <pre><code>body { display: grid; place-items: center; ... }
+#hotbar { position: fixed; bottom: 20px; ... }
+.slot.active { border: 2px solid white; ... }</code></pre>
+            <div class="explanation">
+                <strong>UI Layout:</strong> <br>
+                - Centers the canvas. <br>
+                - Positions the hotbar at the bottom center. <br>
+                - Uses <code>pointer-events: none</code> on UI overlays so clicks pass through to the canvas. <br>
+                - Defines the "active" class style to highlight the selected slot.
+            </div>
+        </section>
+    
+</body>
+</html>
