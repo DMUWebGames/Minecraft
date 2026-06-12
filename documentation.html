@@ -145,12 +145,532 @@
         </ul>
     </nav>
 
+    <!-- Main Documentation Content -->
+    <main>
+        <h1>WebGPU Minecraft Clone - Technical Documentation</h1>
+        <p>This document provides a detailed, line-by-line explanation of the codebase for the WebGPU Minecraft clone. It is intended for tutors and developers to understand the architecture, rendering pipeline, and game logic.</p>
 
-    <!-- BLOCKS.JS -->
+        <!-- MAIN.JS -->
+        <section id="main-js">
+            <h2>main.js - Entry Point & Rendering Pipeline</h2>
+            <p>This file handles initialization, the WebGPU pipeline, texture creation, and the main game loop.</p>
+
+            <pre><code>
+                import { Chunk } from './js/chunk.js';
+                import { BLOCK } from './js/blocks.js';
+                import { Player } from './js/player.js'; 
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Imports:</strong> We import the necessary classes and constants. <code>Chunk</code> handles world data, <code>BLOCK</code> contains block IDs, and <code>Player</code> handles movement and physics.
+            </div>
+
+            <pre><code>
+                // --- VARIABLES GLOBALES ---
+                const player = new Player();
+                const keys = {};
+                let selectedBlock = BLOCK.DIRT; // Par défaut, on pose de l'herbe
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Global State:</strong> We instantiate the player. The <code>keys</code> object tracks keyboard input states. <code>selectedBlock</code> determines which block ID is placed by the player.
+            </div>
+
+            <pre><code>
+                async function main() {
+                if (!navigator.gpu) { console.error("WebGPU not supported"); return; }
+                const adapter = await navigator.gpu.requestAdapter();
+                if (!adapter) { return; }
+                const device = await adapter.requestDevice();
+            </code></pre>
+
+            <div class="explanation">
+                <strong>WebGPU Initialization:</strong> This is the standard boilerplate to initialize WebGPU. We check for support, request a physical adapter (GPU), and then request the logical <code>device</code> which is our interface to the GPU.
+            </div>
+
+            <pre><code>    
+                const canvas = document.getElementById('webgpu-canvas');
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                const context = canvas.getContext('webgpu');
+                const format = navigator.gpu.getPreferredCanvasFormat();
+                context.configure({ device, format });
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Canvas Setup:</strong> We link the HTML canvas to WebGPU. We resize it to the window size. <code>getPreferredCanvasFormat</code> ensures we use the optimal texture format (usually 'bgra8unorm') for the browser's OS.
+            </div>
+
+            <h3>Procedural Texture Generation</h3>
+            <pre><code>    
+                const textureSize = 64; 
+                const cellSize = 32;    
+                const textureCanvas = document.createElement('canvas');
+                textureCanvas.width = textureSize;
+                textureCanvas.height = textureSize;
+                const ctx = textureCanvas.getContext('2d');
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Texture Atlas Creation:</strong> Instead of loading an external image, we draw textures procedurally using a 2D Canvas. We define a grid (2x2 blocks here effectively, though code draws into 64x64).
+            </div>
+
+            <pre><code>    
+                ctx.fillStyle = '#3a9d23'; ctx.fillRect(0, 0, cellSize, cellSize); // Grass
+                ctx.fillStyle = '#8b5a2b'; ctx.fillRect(cellSize, 0, cellSize, cellSize); // Dirt
+                // ... (drawing operations)
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Drawing Colors:</strong> We manually fill rectangles to create distinct textures for Grass, Dirt, Stone, and Wood.
+            </div>
+
+            <pre><code>    
+                    const texture = device.createTexture({
+                    size: [textureSize, textureSize],
+                    format: 'rgba8unorm',
+                    usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+                });
+                const imageBitmap = await createImageBitmap(textureCanvas);
+                device.queue.copyExternalImageToTexture(
+                    { source: imageBitmap },
+                    { texture: texture },
+                    [textureSize, textureSize]
+                );
+            </code></pre>
+
+            <div class="explanation">
+                <strong>GPU Texture Upload:</strong> We create a GPU texture resource. <code>copyExternalImageToTexture</code> efficiently uploads the 2D canvas pixels into the GPU memory for use in shaders.
+            </div>
+
+            <pre><code>    
+                    const sampler = device.createSampler({
+                    magFilter: 'nearest', 
+                    minFilter: 'nearest',
+                });
+            </code></pre>
+            <div class="explanation">
+                <strong>Sampler Configuration:</strong> Defines how the GPU reads textures. <code>nearest</code> filtering creates a pixelated (crisp) look, essential for the Minecraft aesthetic. <code>linear</code> would make it blurry.
+            </div>
+
+            <h3>World & Geometry</h3>
+            <pre><code>    
+                const world = new Chunk();
+                world.generateFloor(70, 70); 
+                let vertices = world.buildMesh();
+            </code></pre>
+
+            <div class="explanation">
+                <strong>World Generation:</strong> We instantiate the world, call the generation logic, and then convert the voxel data into a <code>Float32Array</code> of vertices (mesh) that the GPU can draw.
+            </div>
+
+            <h3>Buffers & Layout</h3>
+            <pre><code>    
+                let vertexBuffer = device.createBuffer({
+                size: vertices.byteLength,
+                usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                });
+                device.queue.writeBuffer(vertexBuffer, 0, vertices);
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Vertex Buffer:</strong> We allocate memory on the GPU specifically for vertex data and upload our mesh data into it.
+            </div>
+
+            <pre><code>    
+                const vertexBufferLayout = {
+                    arrayStride: 32, 
+                    attributes: [
+                        { shaderLocation: 0, offset: 0, format: "float32x3" }, // Position
+                        { shaderLocation: 1, offset: 12, format: "float32x2" }, // UV
+                        { shaderLocation: 2, offset: 20, format: "float32x3" } // Normale
+                    ]
+                };
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Memory Layout:</strong> This tells the GPU how to read the data. <br>
+                - <strong>Stride 32:</strong> Each vertex takes up 32 bytes (3*4 + 2*4 + 3*4). <br>
+                - <strong>Attributes:</strong> Position starts at byte 0, UV at byte 12, Normal at byte 20.
+            </div>
+
+            <h3>Shader Code (WGSL)</h3>
+            <pre><code>    
+                const shaderCode = `
+                struct Uniforms { mvpMatrix: mat4x4<f32> };
+                @binding(0) @group(0) var<uniform> uniforms: Uniforms;
+
+                @binding(1) @group(0) var textureSampler: sampler;
+                @binding(2) @group(0) var textureData: texture_2d<f32>;
+
+                struct Light { pos: vec3<f32>, intensity: f32, };
+                struct LightsBuffer {
+                    count: u32,
+                    pad1: u32, pad2: u32, pad3: u32, 
+                    lights: array<Light, 16>,
+                };
+                @binding(3) @group(0) var<uniform> lightsData: LightsBuffer;
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Shader Structures & Bindings:</strong> <br>
+                - <strong>Uniforms:</strong> Holds the transformation matrix. <br>
+                - <strong>Sampler/Texture:</strong> Bound for reading block textures. <br>
+                - <strong>Light System:</strong> We define a struct for point lights. <code>LightsBuffer</code> uses a fixed-size array (max 16 lights) and includes <strong>padding</strong> (pad1, pad2, pad3) to adhere to WebGPU's strict memory alignment rules for uniform buffers (16-byte alignment for structs).
+            </div>
+
+            <pre><code>        
+                struct VertexInput {
+                    @location(0) position: vec3<f32>,
+                    @location(1) uv: vec2<f32>,
+                    @location(2) normal: vec3<f32>, 
+                };
+                struct VertexOutput {
+                    @builtin(position) position: vec4<f32>,
+                    @location(0) uv: vec2<f32>,
+                    @location(1) normal: vec3<f32>,
+                    @location(2) worldPos: vec3<f32>, 
+                };
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Vertex Stage Data:</strong> Input matches the <code>vertexBufferLayout</code>. Output passes data to the fragment shader. <code>@builtin(position)</code> is the final clip-space position. <code>worldPos</code> is passed to calculate lighting distances.
+            </div>
+
+            <pre><code>        
+                @vertex
+                fn vertexMain(input: VertexInput) -> VertexOutput {
+                    var output: VertexOutput;
+                    output.position = uniforms.mvpMatrix * vec4<f32>(input.position, 1.0);
+                    output.uv = input.uv;
+                    output.normal = input.normal;
+                    output.worldPos = input.position; 
+                    return output;
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Vertex Shader Logic:</strong> The core transformation. It multiplies the local vertex position by the Model-View-Projection matrix to place it correctly on the screen. It passes other attributes through unchanged.
+            </div>
+
+            <pre><code>        
+                @fragment
+                fn fragmentMain(@location(0) uv: vec2<f32>, @location(1) normal: vec3<f32>, @location(2) worldPos: vec3<f32>,) -> @location(0) vec4<f32> {
+
+                let texColor = textureSample(textureData, textureSampler, uv);
+
+                var totalLight = vec3<f32>(0.15, 0.15, 0.15); 
+
+                let sunDir = normalize(vec3<f32>(0.6, 1.0, 0.4));
+                let sunDiffuse = max(dot(normal, sunDir), 0.0);
+                totalLight += vec3<f32>(0.4, 0.4, 0.35) * sunDiffuse;
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Fragment Shader - Base Lighting:</strong> <br>
+                1. <strong>Sampling:</strong> Read the pixel color from the texture atlas. <br>
+                2. <strong>Ambient:</strong> A base light level (0.15) so shadows aren't pitch black. <br>
+                3. <strong>Sun:</strong> A simple directional light. <code>dot(normal, sunDir)</code> calculates how much the face points towards the sun.
+            </div>
+
+            <pre><code>        
+                for (var i: u32 = 0u; i < lightsData.count; i++) {
+                    let light = lightsData.lights[i];
+                    let toLight = light.pos - worldPos;
+                    let dist = length(toLight);
+                    let dir = normalize(toLight);
+
+                    let attenuation = light.intensity / (1.0 + dist * dist);
+                    let diffuse = max(dot(normal, dir), 0.0);
+                    totalLight += vec3<f32>(1.0, 0.55, 0.1) * diffuse * attenuation;
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Point Lights Loop:</strong> Iterates through dynamic lights (lamps). <br>
+                - <strong>Attenuation:</strong> Light fades with distance squared (<code>1.0 + dist*dist</code>). <br>
+                - <strong>Diffuse:</strong> Standard Lambertian reflection. <br>
+                - <strong>Color:</strong> We hardcode an orange tint for lamps.
+            </div>
+
+            <pre><code>        
+                let finalLight = clamp(totalLight, vec3<f32>(0.0), vec3<f32>(1.0));
+                return vec4<f32>(texColor.rgb * finalLight, texColor.a);
+                }`;
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Final Output:</strong> We clamp lighting to prevent over-exposure and multiply the texture color by the calculated light value. This returns the final pixel color.
+            </div>
+
+            <h3>Pipeline & Resources</h3>
+            <pre><code>    
+                const pipeline = device.createRenderPipeline({
+                layout: 'auto',
+                vertex: { module: shaderModule, entryPoint: 'vertexMain', buffers: [vertexBufferLayout] },
+                fragment: { module: shaderModule, entryPoint: 'fragmentMain', targets: [{ format }] },
+                primitive: { topology: 'triangle-list', cullMode: 'none' },
+                depthStencil: { depthWriteEnabled: true, depthCompare: 'less', format: 'depth24plus' },
+                });
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Pipeline Creation:</strong> This connects all the pieces. <br>
+                - <strong>Primitive:</strong> We draw triangles. <code>cullMode: 'none'</code> means we draw both sides of triangles (useful for debugging, though usually 'back' is better). <br>
+                - <strong>DepthStencil:</strong> Essential for 3D so objects further away don't draw over closer objects.
+            </div>
+
+            <pre><code>    
+                const uniformBuffer = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+                const lightsBuffer = device.createBuffer({ size: 272, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Uniform Buffers:</strong> <br>
+                - <strong>Uniform (64 bytes):</strong> Fits one 4x4 matrix (64 bytes). <br>
+                - <strong>Lights (272 bytes):</strong> Calculated size for the light array (Header + 16 lights * struct size).
+            </div>
+
+            <h3>Input Handling</h3>
+            <pre><code>    
+                window.addEventListener("keydown", (event) => {
+                keys[event.key.toLowerCase()] = true;
+                // ... (logic for movement and block selection)
+                });
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Keyboard Input:</strong> We update the <code>keys</code> object state. We also handle hotbar switching (keys 1-5) which updates the UI via <code>updateHotbar</code>.
+            </div>
+
+            <pre><code>    
+                canvas.addEventListener("mousedown", (event) => {
+                const target = player.raycast(world);
+                    if (target) {
+                        // ... (logic to break/place blocks)
+                        if (modified) {
+                            const newVertices = world.buildMesh();
+                            // ... (buffer update logic)
+                            updateLights(); 
+                        }
+                    }
+                });
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Mouse Interaction:</strong> <br>
+                1. <strong>Raycast:</strong> Finds the block the player is looking at. <br>
+                2. <strong>Modify:</strong> Updates the world data map. <br>
+                3. <strong>Rebuild:</strong> Regenerates the mesh vertices and uploads them to the GPU. <br>
+                4. <strong>Update Lights:</strong> Re-scans the world for lamp blocks and updates the lighting buffer.
+            </div>
+
+            <h3>Render Loop</h3>
+            <pre><code>    
+                function frame(time) {
+                // ... (Delta time calculation)
+                player.update(dt, keys, world);
+                
+                // ... (Matrix calculations using glMatrix)
+                device.queue.writeBuffer(uniformBuffer, 0, mvpMatrix);
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Frame Setup:</strong> We calculate physics (player.update). We compute the View and Projection matrices on the CPU every frame and upload them to the <code>uniformBuffer</code>.
+            </div>
+
+            <pre><code>        
+                const commandEncoder = device.createCommandEncoder();
+                const renderPass = commandEncoder.beginRenderPass({
+                    colorAttachments: [{
+                        view: textureView,
+                        clearValue: { r: 0.5, g: 0.7, b: 1.0, a: 1.0 }, // Sky color
+                        loadOp: 'clear',
+                        storeOp: 'store',
+                    }],
+                    depthStencilAttachment: { /* ... */ }
+                });
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Render Pass:</strong> This begins the drawing process. We clear the screen with a sky blue color. We also clear the depth buffer.
+            </div>
+
+            <pre><code>  renderPass.setPipeline(pipeline); 
+                renderPass.setBindGroup(0, bindGroup);
+                renderPass.setVertexBuffer(0, vertexBuffer);
+                renderPass.draw(vertices.length / 8); 
+                renderPass.end();
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Draw Call:</strong> We bind the pipeline, the resources (textures/buffers), and the geometry. <code>draw</code> is called with the vertex count. <code>vertices.length / 8</code> calculates the number of vertices because each vertex has 8 floats (position, uv, normal).
+            </div>
+
+            <pre><code>        device.queue.submit([commandEncoder.finish()]); requestAnimationFrame(frame); }requestAnimationFrame(frame);</code></pre>
+            <div class="explanation">
+                <strong>Submit & Loop:</strong> We send the commands to the GPU and schedule the next frame.
+            </div>
+
+            <h3>Helper Functions</h3>
+            <pre><code>    function updateLights() { 
+                const lights = world.getLightSources(); 
+                const data = new ArrayBuffer(272);
+                const view = new DataView(data);
+                // ... (Data packing logic)
+                device.queue.writeBuffer(lightsBuffer, 0, data);}
+            </code></pre>
+            <div class="explanation">
+                <strong>Light Updater:</strong> This function manually packs binary data into an ArrayBuffer to match the WGSL struct layout expected by the shader. It uses <code>DataView</code> to set float32 and uint32 values at specific byte offsets.
+            </div>
+        </section>
+
+        <!-- CHUNK.JS -->
+        <section id="chunk-js">
+            <h2>js/chunk.js - World Data & Meshing</h2>
+            
+            <pre><code>const baseCubeVertices = new Float32Array([
+                // Face avant (Z+1) — normale (0, 0, 1)
+                0,0,1, 0,1, 0,0,1,  1,0,1, 1,1, 0,0,1, ...
+                ]);
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Geometry Template:</strong> This constant defines the mesh for a single unit cube (0 to 1). It contains hardcoded positions, UVs, and normals for all 6 faces (36 vertices total). We add this to the block's world position later.
+            </div>
+
+            <pre><code>function getBlockUV(blockId) {
+                // ... logic mapping BlockID to UV offsets
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>UV Mapping:</strong> Determines which part of the texture atlas to use. 0.5 represents half the texture size (since the atlas is 2x2).
+            </div>
+
+            <pre><code>
+                export class Chunk {
+                constructor() { this.blocks = new Map(); }
+                setBlock(x, y, z, blockId) { /* ... */ }
+                getBlock(x, y, z) { return this.blocks.get(`${x},${y},${z}`) || BLOCK.AIR; }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Voxel Storage:</strong> Uses a JavaScript <code>Map</code> to store blocks. This is memory efficient for sparse worlds (mostly air) compared to a 3D array. Keys are strings "x,y,z".
+            </div>
+
+            <pre><code>    
+                generateHouse(startX, startY, startZ) {
+                // Loops to create walls, floor, roof
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Procedural Generation:</strong> Demonstrates creating a structure by looping through coordinates and setting blocks based on conditions (walls, floor, holes for doors).
+            </div>
+
+            <pre><code>    
+                buildMesh() {
+                // ...
+                for (const [key, blockId] of this.blocks) {
+                    // 1. Parse coordinates
+                    // 2. Get UVs
+                    // 3. Copy baseCubeVertices, adding offsets
+                }
+                return mesh;
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Mesh Builder:</strong> The core rendering logic. It iterates through every non-air block. It clones the <code>baseCubeVertices</code>, adds the block's world coordinates (x,y,z) to the vertex positions, and writes the result into a giant Float32Array. <br>
+                <em>Note:</em> This is "naive" meshing; it renders hidden faces between adjacent solid blocks, which is less performant than greedy meshing but simpler to implement.
+            </div>
+            
+            <pre><code>    
+                getLightSources() {
+                // Iterates map, finds BLOCK.LAMP, returns positions
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Light Extraction:</strong> Scans the world data to feed the shader's lighting system.
+            </div>
+        </section>
+
+        <!-- PLAYER.JS -->
+        <section id="player-js">
+            <h2>js/player.js - Physics & Input</h2>
+
+            <pre><code>
+                export class Player {
+                constructor() {
+                    this.x = 0; this.y = 5; this.z = 5;
+                    this.speed = 5;
+                    this.velocityY = 0; 
+                    this.GRAVITY = 25;
+                    // ...
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>State Definition:</strong> Defines position, velocity vectors, and physics constants (Gravity, Jump force, Player height).
+            </div>
+
+            <pre><code>    
+                update(dt, keys, world) {
+                    // Trigonometry for movement direction relative to camera yaw
+                    const forwardX = -sinYaw ;
+                    const forwardZ = -cosYaw;
+                    // ... (Input checking and vector math)
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Movement Vector:</strong> Calculates the movement vector based on input keys (ZQSD) and the player's rotation (yaw). It projects the horizontal movement onto the XZ plane.
+            </div>
+
+            <pre><code>    
+                moveWithCollision(dx, dy, dz, world) {  
+                    // Check X axis independently
+                    if (!this.isColliding(newX, ...)) this.x = newX;
+                    // Check Z axis independently
+                    // Check Y axis independently
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Collision Resolution:</strong> Implements "sliding" collision. By moving along one axis at a time, the player will slide along a wall instead of getting stuck. If a collision occurs, the velocity for that axis is canceled but the others remain.
+            </div>
+
+            <pre><code>    
+                isColliding(x, y, z, world) {
+                // Checks blocks at feet and head level
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>AABB Collision:</strong> Treats the player as an Axis-Aligned Bounding Box (AABB). It checks if the integer grid coordinates occupied by the player's feet or head contain a solid block.
+            </div>
+
+            <pre><code>    
+                raycast(world) {
+                    // Marches a point forward step by step
+                    // Returns block coords and normal
+                }
+            </code></pre>
+
+            <div class="explanation">
+                <strong>Raycast:</strong> Used for mining/building. It steps along the player's look vector. By tracking the previous "empty" coordinate, we can calculate the "normal" (face) of the block hit, allowing us to place blocks <em>against</em> the correct face.
+            </div>
+        </section>
+
+        <!-- BLOCKS.JS -->
         <section id="blocks-js">
             <h2>js/blocks.js - Definitions</h2>
             <pre><code>export const BLOCK = { AIR: 0, GRASS: 1, DIRT: 2, ... };
-                export function getBlockColor(blockId) { /* ... */ }</code></pre>
+                export function getBlockColor(blockId) { /* ... */ }
+            </code></pre>
+
             <div class="explanation">
                 <strong>Constants:</strong> A simple enum mapping readable names to IDs. <code>getBlockColor</code> is a fallback utility used in older versions or debugging, though the current system uses UVs/Textures.
             </div>
@@ -159,9 +679,12 @@
         <!-- INDEX.HTML -->
         <section id="html-index">
             <h2>index.html - Structure</h2>
-            <pre><code>&lt;canvas id="webgpu-canvas"&gt;&lt;/canvas&gt;
+            <pre><code>
+                &lt;canvas id="webgpu-canvas"&gt;&lt;/canvas&gt;
                 &lt;div id="crosshair"&gt;&lt;/div&gt;
-                &lt;div id="hotbar"&gt;...&lt;/div&gt;</code></pre>
+                &lt;div id="hotbar"&gt;...&lt;/div&gt;
+            </code></pre>
+
             <div class="explanation">
                 <strong>DOM Elements:</strong> <br>
                 - <strong>Canvas:</strong> The WebGPU render target. <br>
@@ -173,9 +696,12 @@
         <!-- STYLE.CSS -->
         <section id="css-style">
             <h2>style.css - Styling</h2>
-            <pre><code>body { display: grid; place-items: center; ... }
-#hotbar { position: fixed; bottom: 20px; ... }
-.slot.active { border: 2px solid white; ... }</code></pre>
+            <pre><code>
+                body { display: grid; place-items: center; ... }
+                #hotbar { position: fixed; bottom: 20px; ... }
+                .slot.active { border: 2px solid white; ... }
+            </code></pre>
+
             <div class="explanation">
                 <strong>UI Layout:</strong> <br>
                 - Centers the canvas. <br>
@@ -184,6 +710,7 @@
                 - Defines the "active" class style to highlight the selected slot.
             </div>
         </section>
+    </main>
     
 </body>
 </html>
