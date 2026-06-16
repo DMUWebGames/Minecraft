@@ -7,6 +7,7 @@ import { Player } from './js/player.js';
 const player = new Player();
 const keys = {};
 let selectedBlock = BLOCK.DIRT; // Par défaut, on pose de l'herbe
+let gameTime = 0;
 
 // I. Initialisation
 async function main() {
@@ -116,7 +117,13 @@ async function main() {
 
     // III. Shaders
     const shaderCode = `
-        struct Uniforms { mvpMatrix: mat4x4<f32> };
+        struct Uniforms { 
+            mvpMatrix: mat4x4<f32>, 
+            time: f32, 
+            pad1: f32, 
+            pad2: f32, 
+            pad3: f32 
+        };
         @binding(0) @group(0) var<uniform> uniforms: Uniforms;
 
         // On remet la texture
@@ -168,9 +175,33 @@ async function main() {
         var totalLight = vec3<f32>(0.15, 0.15, 0.15); 
 
         // Soleil (on le garde mais plus doux)
-        let sunDir = normalize(vec3<f32>(0.6, 1.0, 0.4));
+        // CALCUL DU SOLEIL DYNAMIQUE
+        // uniforms.time * 0.005 ralentit la rotation.
+        let sunAngle = uniforms.time * 0.005; 
+
+        // Création de la direction du soleil :
+        // X = cos(angle) -> Il se déplace sur l'horizon
+        // Y = sin(angle) -> Il monte et descend (hauteur)
+        // Z = 0.2 -> Un petit fixe pour avoir des ombres un peu obliques
+        var sunDir = normalize(vec3<f32>(cos(sunAngle), sin(sunAngle), 0.2));
+
+        // Gestion Jour / Nuit
+        // Si le soleil est bas (Y négatif), c'est la nuit.
+        let isDay = sunDir.y > -0.2; 
+
+        // Couleur du soleil :
+        // Jour : Blanc/Jaune
+        // Nuit : Bleu foncé (Lune) ou Noir
+        let sunColor = select(vec3<f32>(0.05, 0.05, 0.15), vec3<f32>(0.9, 0.8, 0.6), isDay);
+
+        // Intensité du soleil :
+        // Jour : Forte
+        // Nuit : Très faible
+        let sunIntensity = select(0.1, 1.0, isDay);
+
+        // Application de la lumière
         let sunDiffuse = max(dot(normal, sunDir), 0.0);
-        totalLight += vec3<f32>(0.4, 0.4, 0.35) * sunDiffuse;
+        totalLight += sunColor * sunDiffuse * sunIntensity * 0.8; // 0.8 pour adoucir
 
         // Point lights (lampes)
         for (var i: u32 = 0u; i < lightsData.count; i++) {
@@ -211,7 +242,8 @@ async function main() {
         usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
 
-    const uniformBuffer = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    // 64 bytes pour la matrice + 16 bytes pour le temps (alignement WGSL oblige)
+    const uniformBuffer = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const lightsBuffer = device.createBuffer({ size: 272, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
 
     const bindGroup = device.createBindGroup({
@@ -230,7 +262,7 @@ async function main() {
         if (event.key === ' ') keys[' '] = true;
 
         // Flèches = Rotation caméra
-        const turnSpeed = 0.05;
+        const turnSpeed = 0.1;
         switch (event.key) {
             case "ArrowRight":  player.yaw -= turnSpeed; break;
             case "ArrowLeft": player.yaw += turnSpeed; break;
@@ -303,6 +335,18 @@ async function main() {
         const dt = (time - lastTime) / 1000;
         lastTime = time;
 
+        // Si on est absent PLUS de 120 secondes (2 minutes) -> ON PERD (Reload)
+        if (dt > 120) {
+            location.reload(); // Recharge la page (Game Over)
+            return; 
+        }
+
+        // On saute juste la mise à jour physique pour éviter que le joueur ne traverse le sol.
+        if (dt > 1.0) {
+            // On redemande une image pour que le jeu ne gèle pas
+            requestAnimationFrame(frame);
+            return;
+        }
         // Mettre à jour la logique du jeu (mouvement du joueur, etc.)
         player.update(dt, keys, world);
 
@@ -332,7 +376,17 @@ async function main() {
         glMatrix.mat4.multiply(mvpMatrix, projectionMatrix, viewMatrix);
         glMatrix.mat4.multiply(mvpMatrix, mvpMatrix, modelMatrix);
 
+        // 1. On écrit la matrice (la caméra) au début du buffer (offset 0)
         device.queue.writeBuffer(uniformBuffer, 0, mvpMatrix);
+
+        // 2. On prépare le temps
+        gameTime += dt; // Le temps avance
+
+        // On crée un petit tableau pour le temps (un seul float)
+        const timeData = new Float32Array([gameTime]);
+
+        // 3. On écrit le temps dans le buffer, APRÈS la matrice (offset 64)
+        device.queue.writeBuffer(uniformBuffer, 64, timeData);
 
         // DESSIN
         const commandEncoder = device.createCommandEncoder();
