@@ -25,26 +25,36 @@ const baseCubeVertices = new Float32Array([
     0,0,0, 0,1, -1,0,0,  0,1,1, 1,0, -1,0,0,  0,1,0, 0,0, -1,0,0,
 ]);
 
-// On imagine que notre image est une grille de 2x2
-// (0,0) = Herbe, (1,0) = Terre, (0,1) = Pierre, (1,1) = Bois
+// On imagine que notre image est une grille de 4x4
+// Ligne 0 (v=0.75) : Herbe, Terre, Pierre, Bois --- Ligne 1 (v=0.5) : Lampe, Verre, Eau, (vide)
+    
 function getBlockUV(blockId) {
     let u = 0, v = 0;
     if (blockId === BLOCK.GRASS) {
-        u = 0; v = 1;  // était v=0, maintenant v=1
+        u = 0; v = 3;  
     } else if (blockId === BLOCK.DIRT) {
-        u = 1; v = 1;  // était v=0, maintenant v=1
+        u = 1; v = 3;  
     } else if (blockId === BLOCK.STONE) {
-        u = 0; v = 0;  // était v=1, maintenant v=0
+        u = 2; v = 3;  
     } else if (blockId === BLOCK.WOOD) {
-        u = 1; v = 0;  // était v=1, maintenant v=0
+        u = 3; v = 3;  
     } else if (blockId === BLOCK.LAMP) {
-        u = 0; v = 0;  // UV pour la lampe
+        u = 0; v = 2;  
+    } else if (blockId === BLOCK.GLASS){
+        u = 1; v = 2;
+    } else if (blockId === BLOCK.WATER) { 
+        u = 2; v = 2; 
     }
-    return { u: u * 0.5, v: (1 - v) * 0.5 };
+    // 1.0 - (v+1)*0.25 pour inverser l'axe Y
+    return { u: u * 0.25, v: 1.0 - (v + 1) * 0.25 };
 }
 
 export class Chunk {
-    constructor() {
+    constructor(chunkX=0, chunkZ=0) {   
+        this.chunkX = chunkX; // ← NOUVEAU : position de ce chunk dans le monde
+        this.chunkZ = chunkZ;   // ← NOUVEAU
+        this.size = 16;
+
         // Stockage Voxel : Clé "x,y,z" -> Valeur ID Bloc
         this.blocks = new Map();
     }
@@ -168,14 +178,15 @@ export class Chunk {
                 const idxBase = v * floatsPerVertex;
 
                 // POSITION
-                mesh[idxMesh + 0] = baseCubeVertices[idxBase + 0] + x;
+                //mesh[idxMesh + 0] = baseCubeVertices[idxBase + 0] + x;
+                mesh[idxMesh + 0] = baseCubeVertices[idxBase + 0] + x + this.chunkX * this.size;
                 mesh[idxMesh + 1] = baseCubeVertices[idxBase + 1] + y;
-                mesh[idxMesh + 2] = baseCubeVertices[idxBase + 2] + z;
+                //mesh[idxMesh + 2] = baseCubeVertices[idxBase + 2] + z;
+                mesh[idxMesh + 2] = baseCubeVertices[idxBase + 2] + z + this.chunkZ * this.size;
 
-                // UV
-                mesh[idxMesh + 3] = baseCubeVertices[idxBase + 3] * 0.5 + uvOffset.u;
-                // On inverse le V de base aussi : (1 - v) * 0.5 + offset
-                mesh[idxMesh + 4] = (1 - baseCubeVertices[idxBase + 4]) * 0.5 + uvOffset.v;
+                // UV — adapter au nouvel atlas 4x4 (chaque case = 1/4 = 0.25)
+                mesh[idxMesh + 3] = baseCubeVertices[idxBase + 3] * 0.25 + uvOffset.u;
+                mesh[idxMesh + 4] = (1 - baseCubeVertices[idxBase + 4]) * 0.25 + uvOffset.v;
 
                 //Normale
                 mesh[idxMesh + 5] = baseCubeVertices[idxBase + 5];

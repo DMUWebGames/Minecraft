@@ -1,0 +1,180 @@
+//js/worlds.js
+import { Chunk } from './chunk.js';
+import { BLOCK } from './blocks.js';
+
+const CHUNK_SIZE = 16;
+const RENDER_DISTANCE = 3; // Nombre de chunks
+
+export class World{
+    constructor(){
+        this.chunks = new Map();
+
+        this.lastPlayerChunkX = null;
+        this.lastPlayerChunkZ = null;
+    }
+
+    // ---- Conversion de données
+
+    // Convertit une coordonnée globale
+    worldToChunkCoord(coord){
+        return Math.floor(coord / CHUNK_SIZE);
+    }
+
+    worldToLocalCoord(coord){
+        // Le modulo en JS peut être négatif, on corrige avec une double opération
+        return ((coord % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE; //between 0 to 8
+    }
+
+    getChunkKey(chunkX, chunkZ){
+        return `${chunkX},${chunkZ}`; //unique texte key
+    }
+
+    // --- GESTION DES CHUNKS
+
+    getOrCreateChunk(chunkX, chunkZ) {
+        const key = this.getChunkKey(chunkX, chunkZ);
+
+        if (!this.chunks.has(key)) {
+            const chunk = new Chunk(chunkX, chunkZ);
+            this.generateChunkTerrain(chunk);
+            this.chunks.set(key, chunk);
+        }
+        return this.chunks.get(key);
+    }
+
+    generateChunkTerrain(chunk) {
+        // Sol simple
+        for (let x = 0; x < CHUNK_SIZE; x++) {
+            for (let z = 0; z < CHUNK_SIZE; z++) {
+                chunk.setBlock(x, -1, z, BLOCK.GRASS);
+                chunk.setBlock(x, -2, z, BLOCK.DIRT);
+                chunk.setBlock(x, -3, z, BLOCK.STONE);
+                chunk.setBlock(x, -4, z, BLOCK.WOOD);
+                chunk.setBlock(x, -5, z, BLOCK.GRASS);
+                chunk.setBlock(x, -6, z, BLOCK.WOOD);
+                chunk.setBlock(x, -7, z, BLOCK.DIRT);
+                chunk.setBlock(x, -8, z, BLOCK.STONE);
+                chunk.setBlock(x, -9, z, BLOCK.DIRT);
+                chunk.setBlock(x, -10, z, BLOCK.STONE);
+            }
+        }
+         
+        // La maison ne sera générée que dans le chunk de spawn (0,0), pour ne pas
+        if (chunk.chunkX === 0 && chunk.chunkZ === 0) {
+            chunk.generateHouse(10, 0, 10);
+         
+            // Joueur spawn à Z=5. Blocs à Z=3 = Devant le joueur.
+            // Y=0, 1, 2 = A hauteur des yeux.
+            chunk.setBlock(0, 0, 3, BLOCK.STONE);
+            chunk.setBlock(0, 1, 3, BLOCK.STONE);
+            chunk.setBlock(0, 2, 3, BLOCK.STONE);
+
+            chunk.setBlock(2, 0, 3, BLOCK.WOOD);
+            chunk.setBlock(2, 1, 3, BLOCK.WOOD);
+            chunk.setBlock(2, 2, 3, BLOCK.WOOD);
+        }
+            
+    }
+
+    // --- API PUBLIQUE (même interface que ton ancienne classe Chunk)
+    setBlock(worldX, worldY, worldZ, blockId) {
+        const chunkX = this.worldToChunkCoord(worldX);
+        const chunkZ = this.worldToChunkCoord(worldZ);
+        const localX = this.worldToLocalCoord(worldX);
+        const localZ = this.worldToLocalCoord(worldZ);
+ 
+        const chunk = this.getOrCreateChunk(chunkX, chunkZ);
+        chunk.setBlock(localX, worldY, localZ, blockId);
+    }
+
+    getBlock(worldX, worldY, worldZ){
+        const chunkX = this.worldToChunkCoord(worldX);
+        const chunkZ = this.worldToChunkCoord(worldZ);
+        const key = this.getChunkKey(chunkX,chunkZ);
+
+        if (!this.chunks.has(key)){
+            return BLOCK.AIR;
+        }
+
+        const localX = this.worldToLocalCoord(worldX);
+        const localZ = this.worldToLocalCoord(worldZ);
+
+        return this.chunks.get(key).getBlock(localX, worldY, localZ);
+    }
+
+    //CHARGEMENT DYNAMIQUE AUTOUR DU JOUEUR 
+    // Appelée à chaque frame : charge les chunks proches du joueur, décharge les lointains
+    update(playerX,playerZ){
+        const playerChunkX = this.worldToChunkCoord(playerX);
+        const playerChunkZ = this.worldToChunkCoord(playerZ);
+
+        // Optimisation : si le joueur est resté dans le même chunk, rien à faire
+        if (playerChunkX === this.lastPlayerChunkX && playerChunkZ === this.lastPlayerChunkZ) {
+            return false;
+        }
+
+        this.lastPlayerChunkX = playerChunkX;
+        this.lastPlayerChunkZ = playerChunkZ;
+
+        // Charger tous les chunks dans le rayon RENDER_DISTANCE autour du joueur
+        for (let dx = -RENDER_DISTANCE; dx <= RENDER_DISTANCE; dx++) {
+            for (let dz = -RENDER_DISTANCE; dz <= RENDER_DISTANCE; dz++) {
+                this.getOrCreateChunk(playerChunkX + dx, playerChunkZ + dz);
+            }
+        }
+
+        // Décharger les chunks trop loin (pour ne pas accumuler indéfiniment en mémoire)
+        for (const [key, chunk] of this.chunks) {
+            const dx = chunk.chunkX - playerChunkX;
+            const dz = chunk.chunkZ - playerChunkZ;
+            const dist = Math.max(Math.abs(dx), Math.abs(dz));
+ 
+            if (dist > RENDER_DISTANCE + 1) {
+                this.chunks.delete(key);
+            }
+        }
+ 
+        return true; // true = il y a eu des changements, il faut reconstruire les meshes
+    }
+
+    //CONSTRUCTION DU MESH GLOBAL
+    // Reconstruit le mesh de TOUS les chunks actifs et les fusionne en un seul tableau
+    // (Pour l'instant on garde un seul gros mesh, comme avant — on optimisera plus tard si besoin)
+    buildMesh() {
+        const meshes = [];
+        let totalLength = 0;
+ 
+        for (const chunk of this.chunks.values()) {
+            const chunkMesh = chunk.buildMesh();
+            meshes.push(chunkMesh);
+            totalLength += chunkMesh.length;
+        }
+ 
+        const finalMesh = new Float32Array(totalLength);
+        let offset = 0;
+        for (const mesh of meshes) {
+            finalMesh.set(mesh, offset);
+            offset += mesh.length;
+        }
+ 
+        return finalMesh;
+    }
+ 
+    // LUMIÈRES (toutes les lampes de tous les chunks actifs) 
+    getLightSources() {
+        const allLights = [];
+        for (const chunk of this.chunks.values()) {
+            const localLights = chunk.getLightSources();
+            // Il faut convertir les coordonnées locales du chunk en coordonnées globales
+            for (const light of localLights) {
+                allLights.push({
+                    x: light.x + chunk.chunkX * CHUNK_SIZE,
+                    y: light.y,
+                    z: light.z + chunk.chunkZ * CHUNK_SIZE,
+                });
+            }
+        }
+        return allLights;
+    }
+
+}

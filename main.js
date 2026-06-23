@@ -1,10 +1,13 @@
 //main.js - Point d'entrée du jeu
-import { Chunk } from './js/chunk.js';
+//import { Chunk } from './js/chunk.js';
+import { World } from './js/world.js';
 import { BLOCK } from './js/blocks.js';
 import { Player } from './js/player.js'; 
 
 // --- VARIABLES GLOBALES ---
 const player = new Player();
+window.player = player;
+
 const keys = {};
 let selectedBlock = BLOCK.DIRT; // Par défaut, on pose de l'herbe
 let gameTime = 0;
@@ -26,7 +29,7 @@ async function main() {
 
     // CREATION DE LA TEXTURE (ATLAS) POUR LES BLOCS
     // On crée un petit canvas 2D pour dessiner nos textures
-    const textureSize = 64; // Taille  l'image
+    const textureSize = 128; // Taille  l'image
     const cellSize = 32;    // Taille d'une texture 
 
     const textureCanvas = document.createElement('canvas');
@@ -35,14 +38,26 @@ async function main() {
     textureCanvas.height = textureSize;
     const ctx = textureCanvas.getContext('2d');
 
-    // Case (0,0) Herbe : Vert
+
+    // Ligne du haut du canvas (y=0) : Herbe, Terre, Pierre, Bois
     ctx.fillStyle = '#3a9d23'; ctx.fillRect(0, 0, cellSize, cellSize);
-    // Case (1,0) Terre : Marron
     ctx.fillStyle = '#8b5a2b'; ctx.fillRect(cellSize, 0, cellSize, cellSize);
-    // Case (0,1) Pierre : Gris
-    ctx.fillStyle = '#808080'; ctx.fillRect(0, cellSize, cellSize, cellSize);
-    // Case (1,1) Bois : Marron foncé
-    ctx.fillStyle = '#5c4033'; ctx.fillRect(cellSize, cellSize, cellSize, cellSize);
+    ctx.fillStyle = '#808080'; ctx.fillRect(2*cellSize, 0, cellSize, cellSize);
+    ctx.fillStyle = '#5c4033'; ctx.fillRect(3*cellSize, 0, cellSize, cellSize);
+
+    // Ligne suivante (y=32) : Lampe, Verre, Eau
+    ctx.fillStyle = '#FFD700'; ctx.fillRect(0, cellSize, cellSize, cellSize);
+
+    ctx.fillStyle = 'rgba(200, 230, 255, 0.2)';
+    ctx.fillRect(cellSize, cellSize, cellSize, cellSize);
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
+    ctx.strokeRect(cellSize + 2, cellSize + 2, cellSize - 4, cellSize - 4);
+
+    ctx.fillStyle = 'rgba(52, 152, 219, 0.6)'
+    ctx.fillRect(2*cellSize, cellSize, cellSize, cellSize);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(2*cellSize + 5, cellSize + 5, 4, 4);
+    ctx.fillRect(2*cellSize + 20, cellSize + 15, 3, 3);
     
     // Optionnel : Ajouter du bruit pour faire moins "plat"
     // (Tu peux ignorer cette boucle si tu veux des couleurs unies)
@@ -75,30 +90,16 @@ async function main() {
     });
 
     // II. Géométrie (Monde)
-    const world = new Chunk();
+    //const world = new Chunk();
+    const world = new World();
     
     // On génère le terrain (Herbe + Terre + quelques blocs)
     //Floor -> Terrain
-     world.generateFloor(70, 70); 
-
-    // Exemple d'ajout manuel si tu veux
-    // world.setBlock(5, 5, 5, BLOCK.WOOD); 
+    world.update(player.x, player.z);
+    //world.generateFloor(70, 70); 
 
     let vertices = world.buildMesh();
-    /*const vertices = new Float32Array([
-        // Face avant (Rouge) - Le cube sera centré en 0,0,0
-        -1, -1,  1, 1, 0, 0,  1, -1,  1, 1, 0, 0,  1,  1,  1, 1, 0, 0, -1, -1,  1, 1, 0, 0,  1,  1,  1, 1, 0, 0, -1,  1,  1, 1, 0, 0,
-        // Face arrière (Bleu)
-        -1, -1, -1, 0, 0, 1, -1,  1, -1, 0, 0, 1,  1,  1, -1, 0, 0, 1, -1, -1, -1, 0, 0, 1,  1,  1, -1, 0, 0, 1,  1, -1, -1, 0, 0, 1,
-        // Face supérieure (Vert)
-        -1,  1, -1, 0, 1, 0, -1,  1,  1, 0, 1, 0,  1,  1,  1, 0, 1, 0, -1,  1, -1, 0, 1, 0,  1,  1,  1, 0, 1, 0,  1,  1, -1, 0, 1, 0,
-        // Face inférieure (Jaune)
-        -1, -1, -1, 1, 1, 0,  1, -1, -1, 1, 1, 0,  1, -1,  1, 1, 1, 0, -1, -1, -1, 1, 1, 0,  1, -1,  1, 1, 1, 0, -1, -1,  1, 1, 1, 0,
-        // Face droite (Cyan)
-         1, -1, -1, 0, 1, 1,  1,  1, -1, 0, 1, 1,  1,  1,  1, 0, 1, 1,  1, -1, -1, 0, 1, 1,  1,  1,  1, 0, 1, 1,  1, -1,  1, 0, 1, 1,
-        // Face gauche (Magenta)
-        -1, -1, -1, 1, 0, 1, -1, -1,  1, 1, 0, 1, -1,  1,  1, 1, 0, 1, -1, -1, -1, 1, 0, 1, -1,  1,  1, 1, 0, 1, -1,  1, -1, 1, 0, 1,
-    ]);*/
+
 
     let vertexBuffer = device.createBuffer({
         size: vertices.byteLength,
@@ -124,8 +125,8 @@ async function main() {
             pad2: f32, 
             pad3: f32 
         };
-        @binding(0) @group(0) var<uniform> uniforms: Uniforms;
 
+        @binding(0) @group(0) var<uniform> uniforms: Uniforms;
         // On remet la texture
         @binding(1) @group(0) var textureSampler: sampler;
         @binding(2) @group(0) var textureData: texture_2d<f32>;
@@ -142,6 +143,7 @@ async function main() {
             pad1: u32, pad2: u32, pad3: u32, // padding alignement
             lights: array<Light, 16>,
         };
+        
         @binding(3) @group(0) var<uniform> lightsData: LightsBuffer;
 
         struct VertexInput {
@@ -172,7 +174,7 @@ async function main() {
         let texColor = textureSample(textureData, textureSampler, uv);
 
         // Lumière ambiante
-        var totalLight = vec3<f32>(0.15, 0.15, 0.15); 
+        var totalLight = vec3<f32>(0.2, 0.2, 0.2); 
 
         // Soleil (on le garde mais plus doux)
         // CALCUL DU SOLEIL DYNAMIQUE
@@ -231,7 +233,25 @@ async function main() {
     const pipeline = device.createRenderPipeline({
         layout: 'auto',
         vertex: { module: shaderModule, entryPoint: 'vertexMain', buffers: [vertexBufferLayout] },
-        fragment: { module: shaderModule, entryPoint: 'fragmentMain', targets: [{ format }] },
+        fragment: { 
+            module: shaderModule, 
+            entryPoint: 'fragmentMain', 
+            targets: [{ 
+                format,
+                blend: {
+                    color: {
+                        srcFactor: 'src-alpha',
+                        dstFactor: 'one-minus-src-alpha',
+                        operation: 'add',
+                    },
+                    alpha: {
+                        srcFactor: 'one',
+                        dstFactor: 'one-minus-src-alpha',
+                        operation: 'add',
+                    },
+                },
+            }] 
+        },
         primitive: { topology: 'triangle-list', cullMode: 'none' },
         depthStencil: { depthWriteEnabled: true, depthCompare: 'less', format: 'depth24plus' },
     });
@@ -262,13 +282,7 @@ async function main() {
         if (event.key === ' ') keys[' '] = true;
 
         // Flèches = Rotation caméra
-        const turnSpeed = 0.1;
-        switch (event.key) {
-            case "ArrowRight":  player.yaw -= turnSpeed; break;
-            case "ArrowLeft": player.yaw += turnSpeed; break;
-            case "ArrowDown":  player.pitch -= turnSpeed; break;
-            case "ArrowUp":  player.pitch += turnSpeed; break;
-        }
+        //const turnSpeed = 0.1;
 
         // Choix des blocs avec les touches 1, 2, 3
         switch(event.key) {
@@ -277,7 +291,10 @@ async function main() {
             case '3': selectedBlock = BLOCK.STONE; updateHotbar(3); break;
             case '4': selectedBlock = BLOCK.WOOD; updateHotbar(4); break;
             case '5': selectedBlock = BLOCK.LAMP; updateHotbar(5); break;
+            case '6': selectedBlock = BLOCK.GLASS; updateHotbar(6); break;
+            case '7': selectedBlock = BLOCK.WATER; updateHotbar(7); break;
         }
+        //Simplifier le code
     });
 
     window.addEventListener("keyup", (event) => {
@@ -349,6 +366,22 @@ async function main() {
         }
         // Mettre à jour la logique du jeu (mouvement du joueur, etc.)
         player.update(dt, keys, world);
+
+        // Recharge les chunks si le joueur a changé de chunk
+        const chunksChanged = world.update(player.x, player.z);
+        if (chunksChanged) {
+            const newVertices = world.buildMesh();
+
+            if (newVertices.byteLength > vertexBuffer.size) {
+                vertexBuffer.destroy();
+                vertexBuffer = device.createBuffer({
+                    size: newVertices.byteLength,
+                    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                });
+            }
+            device.queue.writeBuffer(vertexBuffer, 0, newVertices);
+            vertices = newVertices;
+        }
 
         const modelMatrix = glMatrix.mat4.create(); // Le cube est fixe dans le monde
         const viewMatrix = glMatrix.mat4.create();

@@ -10,6 +10,7 @@ export class Player {
         // Vitesse de déplacement
         this.speed = 5;
         this.velocityY = 0; // Pour la gravité et les sauts
+        this.isInWater = false;
 
         // Etat
         this.onGround = false; // Est-ce que le joueur touche le sol ?
@@ -23,6 +24,22 @@ export class Player {
     }
 
     update(dt, keys, world) {
+
+        const turnSpeed = 1;
+        if (keys['arrowright']){
+            this.yaw -= turnSpeed * dt;
+        }
+
+        if (keys['arrowleft']){
+            this.yaw += turnSpeed * dt;
+        }
+
+        if (keys['arrowdown']){
+            this.pitch -= turnSpeed * dt;
+        }
+        if (keys['arrowup']){
+            this.pitch += turnSpeed * dt;
+        }
         
         const cosPitch = Math.cos(this.pitch);
         const sinPitch = Math.sin(this.pitch);
@@ -33,7 +50,6 @@ export class Player {
         // J'ignore le Y pour le mouvement horizontal, on gère la gravité à part
         const forwardX = -sinYaw ;
         const forwardZ = -cosYaw;
-
         // Vecteur droite
         const rightX = cosYaw;
         const rightZ = -sinYaw;
@@ -65,12 +81,24 @@ export class Player {
         // Mouvement de collision
         this.moveWithCollision(dx, 0, dz, world);
 
-        // Gravité et saut
-        this.velocityY -= this.GRAVITY * dt;
+        // Vérifier si on est dans l'eau
+        const blockAtFeet = world.getBlock(Math.floor(this.x), Math.floor(this.y), Math.floor(this.z));
+        this.isInWater = (blockAtFeet === BLOCK.WATER);
+
+        if (this.isInWater) {
+            this.velocityY -= 5 * dt;      // gravité réduite dans l'eau
+            this.velocityY *= 0.95;        // frottement de l'eau
+            if (keys[' ']) {
+                this.velocityY = 4;        // nager vers le haut
+            }
+        } else {
+            this.velocityY -= this.GRAVITY * dt; // gravité normale
+        }
+
         this.moveWithCollision(0, this.velocityY * dt, 0, world);
 
         // Saut (espace)
-        if (keys[' '] && this.onGround) {
+        if (keys[' '] && this.onGround && !this.isInWater) {
             this.velocityY = this.JUMP_FORCE;
             this.onGround = false;
         }
@@ -121,17 +149,20 @@ export class Player {
         const blockYHead = Math.floor(y + this.PLAYER_HEIGHT); // Tête du joueur
         const blockZ = Math.floor(z);
 
-        //Verification pied
-        if (world.getBlock(blockX, blockYFeet, blockZ) !== BLOCK.AIR) {
-            return true; // Collision au niveau des pieds
-        }
+        // Récupérer les IDs des blocs
+        const blockFeet = world.getBlock(blockX, blockYFeet, blockZ);
+        const blockHead = world.getBlock(blockX, blockYHead, blockZ);
+
+        // Liste des blocs qui ne sont PAS solides (on peut passer à travers)
+        const passThrough = [BLOCK.AIR, BLOCK.WATER, BLOCK.LAMP];
+
 
         //Verification tête
-        if (world.getBlock(blockX, blockYHead, blockZ) !== BLOCK.AIR) {
-            return true; // Collision au niveau de la tête
+        if (passThrough.includes(blockFeet) && passThrough.includes(blockHead)) {
+            return false;
         }
 
-        return false; // Pas de collision
+        return true; // Pas de collision
     }
 
     raycast(world) {
