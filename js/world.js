@@ -1,4 +1,4 @@
-//js/worlds.js
+//js/world.js
 import { Chunk } from './chunk.js';
 import { BLOCK } from './blocks.js';
 
@@ -42,6 +42,33 @@ export class World{
         return this.chunks.get(key);
     }
 
+    generateTree(chunk, x, y,z){
+        const trunkHeight = 4;
+
+        //Tronc
+        for (let dy = -1; dy < trunkHeight - 1; dy++){
+            chunk.setBlock(x, y + dy, z, BLOCK.WOOD);
+        }
+
+        // Feuillage : cube 3x3 sur 2 couches, au sommet du tronc
+        const leafBaseY = y + trunkHeight - 2;
+
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dz = -2; dz <= 2; dz++) {
+                chunk.setBlock(x + dx, leafBaseY, z + dz, BLOCK.TREES);
+            }
+        }
+
+        // Étage du haut : plus étroit 3x3
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dz = -1; dz <= 1; dz++) {
+                chunk.setBlock(x + dx, leafBaseY + 1, z + dz, BLOCK.TREES);
+            }
+        }
+        // Pointe du feuillage (juste le centre, une couche plus haut)
+        chunk.setBlock(x, leafBaseY + 2, z, BLOCK.TREES);
+    }
+
     generateChunkTerrain(chunk) {
         // Sol simple
         for (let x = 0; x < CHUNK_SIZE; x++) {
@@ -62,6 +89,7 @@ export class World{
         // La maison ne sera générée que dans le chunk de spawn (0,0), pour ne pas
         if (chunk.chunkX === 0 && chunk.chunkZ === 0) {
             chunk.generateHouse(10, 0, 10);
+            this.generateTree (chunk, -10, 0, 9);
          
             // Joueur spawn à Z=5. Blocs à Z=3 = Devant le joueur.
             // Y=0, 1, 2 = A hauteur des yeux.

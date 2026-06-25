@@ -53,11 +53,20 @@ async function main() {
     ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
     ctx.strokeRect(cellSize + 2, cellSize + 2, cellSize - 4, cellSize - 4);
 
-    ctx.fillStyle = 'rgba(52, 152, 219, 0.6)'
+    ctx.fillStyle = 'rgba(52, 152, 219, 0.8)'
     ctx.fillRect(2*cellSize, cellSize, cellSize, cellSize);
     ctx.fillStyle = 'rgba(255,255,255,0.2)';
     ctx.fillRect(2*cellSize + 5, cellSize + 5, 4, 4);
     ctx.fillRect(2*cellSize + 20, cellSize + 15, 3, 3);
+
+    // Case (3,1) Feuilles (Vert foncé avec texture)
+    ctx.fillStyle = '#1f5611';
+    ctx.fillRect (3*cellSize, cellSize, cellSize, cellSize);
+    // Petites touches plus claires pour simuler des feuilles
+    ctx.fillStyle = 'rgba(80, 180, 60, 0.5)';
+    for (let i = 0; i < 15; i++) {
+        ctx.fillRect(3*cellSize + Math.random()*28, cellSize + Math.random()*28, 3, 3);
+    }
     
     // Optionnel : Ajouter du bruit pour faire moins "plat"
     // (Tu peux ignorer cette boucle si tu veux des couleurs unies)
@@ -171,7 +180,31 @@ async function main() {
         @fragment
         fn fragmentMain(@location(0) uv: vec2<f32>, @location(1) normal: vec3<f32>, @location(2) worldPos: vec3<f32>,) -> @location(0) vec4<f32> {
 
-        let texColor = textureSample(textureData, textureSampler, uv);
+        //ON LIT LA TEXTURE EN PREMIER 
+        var texColor = textureSample(textureData, textureSampler, uv);
+
+        // 1. On isole le coin bas-gauche de la case dans l'atlas (ex: 0.5, 0.25)
+        var tileCorner = floor(uv * 4.0) / 4.0;
+
+        // 2. On isole la position DU DANS la case (comprise entre 0 et 1)
+        var localUv = fract(uv * 4.0);
+
+        // 3. On anime CETTE position locale (le fract l'empêchera de déborder)
+        var animLocalUv = vec2<f32>(
+            localUv.x + uniforms.time * 0.5, // Défilement horizontal
+            localUv.y + sin(localUv.x * 10.0 + uniforms.time * 2.0) * 0.2 // Ondulation
+        );
+        animLocalUv = fract(animLocalUv); // On le bloque entre 0 et 1 !
+
+        // 4. On remet cette position animée dans son petit carré de l'atlas
+        var animUv = tileCorner + (animLocalUv / 4.0);
+
+        // 5. On lit la texture avec cet UV sécurisé
+        let waterColor = textureSample(textureData, textureSampler, animUv);
+
+        if (texColor.a > 0.4 && texColor.a < 0.9) {
+            texColor = waterColor; 
+        }
 
         // Lumière ambiante
         var totalLight = vec3<f32>(0.2, 0.2, 0.2); 
@@ -293,6 +326,12 @@ async function main() {
             case '5': selectedBlock = BLOCK.LAMP; updateHotbar(5); break;
             case '6': selectedBlock = BLOCK.GLASS; updateHotbar(6); break;
             case '7': selectedBlock = BLOCK.WATER; updateHotbar(7); break;
+            case '8': 
+                const target = player.raycast(world);
+                if (target) {
+                    world.generateTree(world, target.x, target.z); // adapter selon ta structure
+                }
+                break;
         }
         //Simplifier le code
     });
@@ -466,7 +505,7 @@ async function main() {
             view.setFloat32(offset + 0,  lights[i].x,  true);
             view.setFloat32(offset + 4,  lights[i].y,  true);
             view.setFloat32(offset + 8,  lights[i].z,  true);
-            view.setFloat32(offset + 12, 10.0,          true); // intensité
+            view.setFloat32(offset + 12, 100.0,          true); // intensité
         }
 
         device.queue.writeBuffer(lightsBuffer, 0, data);

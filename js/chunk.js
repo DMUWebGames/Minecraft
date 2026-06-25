@@ -44,6 +44,8 @@ function getBlockUV(blockId) {
         u = 1; v = 2;
     } else if (blockId === BLOCK.WATER) { 
         u = 2; v = 2; 
+    } else if (blockId ===BLOCK.TREES){
+        u = 3; v = 2;
     }
     // 1.0 - (v+1)*0.25 pour inverser l'axe Y
     return { u: u * 0.25, v: 1.0 - (v + 1) * 0.25 };
