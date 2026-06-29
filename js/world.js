@@ -100,8 +100,61 @@ export class World{
             chunk.setBlock(2, 0, 3, BLOCK.WOOD);
             chunk.setBlock(2, 1, 3, BLOCK.WOOD);
             chunk.setBlock(2, 2, 3, BLOCK.WOOD);
+
+        }else if (chunk.chunkX === 3 && chunk.chunkZ === 3) {
+            // NOUVEAU : la grotte/rivière fixe
+            this.generateUndergroundRoom(chunk);
         }
             
+    }
+
+    generateUndergroundRoom(chunk) {
+        const startX = 3, startZ = 3; // position locale dans le chunk
+        const roomW = 10, roomD = 10, roomH = 6;
+        const roomFloorY = -8; // profondeur de la salle (sous le sol normal)
+
+        // 1. Creuser la grande salle (remplir d'air)
+        for (let x = startX; x < startX + roomW; x++ ){
+            for (let z = startZ; z < startZ + roomD; z++){
+                for (let y = roomFloorY; y < roomFloorY + roomH; y++){
+                    chunk.setBlock(x, y, z, BLOCK.AIR);
+                }
+            }
+        }
+
+        // 2. Sol  de la taille en pierre
+        for (let x = startX; x < startX + roomW; x++ ){
+            for (let z = startZ; z < startZ + roomD; z++){
+                chunk.setBlock(x, roomFloorY -1, z, BLOCK.STONE);  
+            }
+        }
+
+        // 3. Le trou vertical (l'entrée), depuis la surface jusqu'à la salle — élargi
+        const entranceX = startX + 5, entranceZ = startZ + 5;
+        const entranceRadius = 1; // 1 = trou de 3x3, 2 = trou de 5x5, etc.
+
+        for (let dx = -entranceRadius; dx <= entranceRadius; dx++) {
+            for (let dz = -entranceRadius; dz <= entranceRadius; dz++) {
+                for (let y = roomFloorY + roomH; y <= -1; y++) {
+                    chunk.setBlock(entranceX + dx, y, entranceZ + dz, BLOCK.AIR);
+                }
+            }
+        }
+
+        // 4. La rivière : un point de départ en surface qui descend par paliers
+        let riverX = entranceX - 3;
+        let riverY = -1; // niveau du sol normal
+        let riverZ = entranceZ;
+
+        for (let step = 0; step < 6; step++) {
+            chunk.setBlock(riverX, riverY, riverZ, BLOCK.WATER);
+            riverY -= 1; // palier : on descend d'un bloc à chaque étape
+            riverX += 1; // on avance horizontalement vers le trou
+        }
+
+        // 5. La rivière se déverse dans la salle (eau au centre du fond)
+        chunk.setBlock(entranceX, roomFloorY, entranceZ, BLOCK.WATER);
+
     }
 
     // --- API PUBLIQUE (même interface que ton ancienne classe Chunk)

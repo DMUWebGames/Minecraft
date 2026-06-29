@@ -479,6 +479,9 @@ async function main() {
             }
         });
 
+        // Dans main.js, dans la boucle frame()
+        document.getElementById('debug-coords').textContent = `X: ${player.x.toFixed(1)} | Z: ${player.z.toFixed(1)} | Chunk: (${Math.floor(player.x/16)}, ${Math.floor(player.z/16)})`;
+
         renderPass.setPipeline(pipeline);
         renderPass.setBindGroup(0, bindGroup);
         renderPass.setVertexBuffer(0, vertexBuffer);
