@@ -3,6 +3,7 @@
 import { World } from './js/world.js';
 import { BLOCK } from './js/blocks.js';
 import { Player } from './js/player.js'; 
+import {saveGame, loadGame} from './js/save.js';
 
 // --- VARIABLES GLOBALES ---
 const player = new Player();
@@ -311,6 +312,12 @@ async function main() {
 
     // CONTRÔLES FPS 
     window.addEventListener("keydown", (event) => {
+
+        // Empecher le navigateur de se recharger
+        if (event.key === 'F5' || event.key === 'F9') {
+            event.preventDefault(); // J'empêche le navigateur de rafraîchir
+        }
+
         keys[event.key.toLowerCase()] = true;
         if (event.key === ' ') keys[' '] = true;
 
@@ -332,6 +339,22 @@ async function main() {
                     world.generateTree(world, target.x, target.z); // adapter selon ta structure
                 }
                 break;
+            
+            case 'F5' : saveGame(player, world); break;
+            case 'F9' : loadGame(player,world).then((loaded)=>{
+                if (loaded) {
+                    // Reconstruire le mesh après chargement
+                    const newVertices = world.buildMesh();
+                    vertexBuffer.destroy();
+                    vertexBuffer = device.createBuffer({
+                        size: newVertices.byteLength,
+                        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                    });
+                    device.queue.writeBuffer(vertexBuffer, 0, newVertices);
+                    vertices = newVertices;
+                }
+            });
+            break;
         }
         //Simplifier le code
     });
