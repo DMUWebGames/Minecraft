@@ -12,6 +12,7 @@ window.player = player;
 const keys = {};
 let selectedBlock = BLOCK.DIRT; // Par défaut, on pose de l'herbe
 let gameTime = 0;
+let isPointerLocked = false; 
 
 // I. Initialisation
 async function main() {
@@ -366,6 +367,7 @@ async function main() {
     
     // Souris pour casser et poser des blocs
     canvas.addEventListener("mousedown", (event) => {
+        if (!isPointerLocked) return;
         const target = player.raycast(world);
         if (target) {
             let modified = false;
@@ -405,6 +407,29 @@ async function main() {
 
     // Empêcher le menu contextuel du clic droit sur le canvas
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    
+    // CONTRÔLE CAMERA À LA SOURIS
+    canvas.addEventListener("click", () => {
+        if (!isPointerLocked) {
+            canvas.requestPointerLock();
+        }
+    });
+
+    document.addEventListener("pointerlockchange", () => {
+        isPointerLocked = (document.pointerLockElement === canvas);
+        console.log(isPointerLocked ? "Souris capturée — Echap pour libérer" : "Souris libérée");
+    });
+
+    document.addEventListener("mousemove", (event) => {
+        if (isPointerLocked) {
+            const sensitivity = 0.002;
+            player.yaw -= event.movementX * sensitivity;
+            player.pitch -= event.movementY * sensitivity;
+
+            const maxPitch = Math.PI / 2 - 0.01;
+            player.pitch = Math.max(-maxPitch, Math.min(maxPitch, player.pitch));
+        }
+    });
 
     // V. Rendu
     let lastTime = 0;
