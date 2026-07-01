@@ -77,9 +77,9 @@ export class Chunk {
     }
 
     generateHouse(startX, startY, startZ) {
-        const w = 10;  // largeur
+        const w = 8;  // largeur
         const h = 6;  // hauteur
-        const d = 10 ;  // LONGUEUR
+        const d = 8 ;  // LONGUEUR
 
         for (let x = startX; x < startX + w; x++) {
             for (let z = startZ; z < startZ + d; z++) {
@@ -111,6 +111,7 @@ export class Chunk {
         this.setBlock(startX + 1, startY + 2, startZ, BLOCK.AIR);
         this.setBlock(startX + 5, startY + 2, startZ, BLOCK.AIR);
     }
+
 
     // Générer un sol avec des types de blocs
     generateFloor(sizeX, sizeZ) {

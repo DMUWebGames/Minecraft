@@ -69,6 +69,23 @@ export class World{
         chunk.setBlock(x, leafBaseY + 2, z, BLOCK.TREES);
     }
 
+    // Fonction mathématique pour calculer la hauteur de la montagne
+    getMountainHeight(worldX, worldZ) {
+        // 1. De petites collines douces partout (le sol de base qui ondule)
+        let height = Math.sin(worldX * 0.05) * 5;
+        height += Math.cos(worldZ * 0.08) * 4;
+
+        // 2. Le gros pic de montagne (au centre du monde 0,0)
+        // On calcule la distance depuis le centre
+        let dist = Math.sqrt(worldX * worldX + worldZ * worldZ);
+        
+        // Plus on est près du centre, plus ça monte haut (calcul de cloche)
+        let peak = Math.exp(-dist * dist / 300.0) * 20.0; // 20 = hauteur max du pic
+
+        // On arrondit pour avoir des blocs entiers
+        return Math.floor(height + peak);
+    }
+
     generateChunkTerrain(chunk) {
         // Sol simple
         for (let x = 0; x < CHUNK_SIZE; x++) {
@@ -88,7 +105,7 @@ export class World{
          
         // La maison ne sera générée que dans le chunk de spawn (0,0), pour ne pas
         if (chunk.chunkX === 0 && chunk.chunkZ === 0) {
-            chunk.generateHouse(10, 0, 10);
+            chunk.generateHouse(8, 0, 8);
             this.generateTree (chunk, -10, 0, 9);
          
             // Joueur spawn à Z=5. Blocs à Z=3 = Devant le joueur.
@@ -104,8 +121,50 @@ export class World{
         }else if (chunk.chunkX === 3 && chunk.chunkZ === 3) {
             // NOUVEAU : la grotte/rivière fixe
             this.generateUndergroundRoom(chunk);
+        } else if (chunk.chunkX === -1 && chunk.chunkZ === -2) {
+            // NOUVEAU : la montagne fixe
+            this.generateMountain(chunk, 8, 8);
         }
             
+    }
+
+    // FONCTION 100% INDÉPENDANTE POUR LA MONTAGNE
+    generateMountain(chunk, centerX, centerZ) {
+        const rayon = 12;      // La largeur de la montagne (en blocs)
+        const hauteurMax = 18; // Le point le plus haut de la montagne
+
+        for (let x = -rayon; x <= rayon; x++) {
+            for (let z = -rayon; z <= rayon; z++) {
+                
+                // On calcule la distance depuis le centre de la montagne
+                const dist = Math.sqrt(x * x + z * z);
+                
+                // Si on est en dehors du rayon, on passe
+                if (dist > rayon) continue;
+
+                // On calcule la hauteur pour cet endroit 
+                // (Proche du centre = hauteurMax, loin du centre = 0)
+                let hauteur = Math.floor((1 - (dist / rayon)) * hauteurMax);
+
+                // ON POSE LES BLOCS DE Y=1 JUSQU'A Y=hauteur
+                // (On ne touche jamais à Y=0 ou en dessous !)
+                for (let y = 1; y <= hauteur; y++) {
+                    
+                    // Le bloc tout en haut est de l'herbe, le reste est de la pierre
+                    let typeBloc = BLOCK.STONE;
+                    if (y === hauteur) typeBloc = BLOCK.GRASS;
+
+                    // Position finale dans le chunk
+                    let finalX = centerX + x;
+                    let finalZ = centerZ + z;
+
+                    // Sécurité : on ne dessine que si on ne sort pas du chunk
+                    if (finalX >= 0 && finalX < CHUNK_SIZE && finalZ >= 0 && finalZ < CHUNK_SIZE) {
+                        chunk.setBlock(finalX, y, finalZ, typeBloc);
+                    }
+                }
+            }
+        }
     }
 
     generateUndergroundRoom(chunk) {
