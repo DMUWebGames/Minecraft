@@ -58,13 +58,13 @@ export class Player {
         let dx=0;
         let dz=0;
 
-        if (keys['z']) { // Avancer
+        if (keys['z'] || keys['w']) { // Avancer
             dx += forwardX; dz += forwardZ ;
         }
         if (keys['s']) { // Reculer
             dx -= forwardX; dz -= forwardZ;
         }
-        if (keys['q']) { // Gauche (Strafe)
+        if (keys['q'] || keys['a']) { // Gauche (Strafe)
             dx -= rightX; dz -= rightZ;
         }
         if (keys['d']) { // Droite (Strafe)

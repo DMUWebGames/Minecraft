@@ -4,6 +4,7 @@ import { World } from './js/world.js';
 import { BLOCK } from './js/blocks.js';
 import { Player } from './js/player.js'; 
 import {saveGame, loadGame} from './js/save.js';
+import{loadAllTextures} from './js/textures.js';
 
 // --- VARIABLES GLOBALES ---
 const player = new Player();
@@ -40,12 +41,21 @@ async function main() {
     textureCanvas.height = textureSize;
     const ctx = textureCanvas.getContext('2d');
 
+    //on charges les images
+    const textures = await loadAllTextures();
 
     // Ligne du haut du canvas (y=0) : Herbe, Terre, Pierre, Bois
     ctx.fillStyle = '#3a9d23'; ctx.fillRect(0, 0, cellSize, cellSize);
-    ctx.fillStyle = '#8b5a2b'; ctx.fillRect(cellSize, 0, cellSize, cellSize);
-    ctx.fillStyle = '#808080'; ctx.fillRect(2*cellSize, 0, cellSize, cellSize);
-    ctx.fillStyle = '#5c4033'; ctx.fillRect(3*cellSize, 0, cellSize, cellSize);
+
+    //ctx.fillStyle = '#8b5a2b'; ctx.fillRect(cellSize, 0, cellSize, cellSize);
+    // Terre (Remplace l'ancien fillStyle marron)
+    ctx.drawImage(textures.dirt, cellSize, 0, cellSize, cellSize);
+    //ctx.fillStyle = '#808080'; ctx.fillRect(2*cellSize, 0, cellSize, cellSize);
+    // Pierre (Remplace l'ancien fillStyle gris)
+    ctx.drawImage(textures.stone, 2*cellSize, 0, cellSize, cellSize);
+    //ctx.fillStyle = '#5c4033'; ctx.fillRect(3*cellSize, 0, cellSize, cellSize);
+    // Bois (Remplace l'ancien fillStyle marron foncé)
+    ctx.drawImage(textures.wood, 3*cellSize, 0, cellSize, cellSize);
 
     // Ligne suivante (y=32) : Lampe, Verre, Eau
     ctx.fillStyle = '#FFD700'; ctx.fillRect(0, cellSize, cellSize, cellSize);
@@ -55,7 +65,7 @@ async function main() {
     ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 2;
     ctx.strokeRect(cellSize + 2, cellSize + 2, cellSize - 4, cellSize - 4);
 
-    ctx.fillStyle = 'rgba(52, 152, 219, 0.8)'
+    ctx.fillStyle = 'rgba(52, 152, 219, 0.8)';
     ctx.fillRect(2*cellSize, cellSize, cellSize, cellSize);
     ctx.fillStyle = 'rgba(255,255,255,0.2)';
     ctx.fillRect(2*cellSize + 5, cellSize + 5, 4, 4);
