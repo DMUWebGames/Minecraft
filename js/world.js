@@ -148,7 +148,7 @@ export class World{
 
                 // ON POSE LES BLOCS DE Y=1 JUSQU'A Y=hauteur
                 // (On ne touche jamais à Y=0 ou en dessous !)
-                for (let y = 1; y <= hauteur; y++) {
+                for (let y = 0; y <= hauteur; y++) {
                     
                     // Le bloc tout en haut est de l'herbe, le reste est de la pierre
                     let typeBloc = BLOCK.STONE;
