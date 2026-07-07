@@ -5,6 +5,7 @@
 const PORT = 8000;
 const SAVES_DIR = "./saves";
 const connectedSockets = new Set(); // Pour garder une trace des WebSockets connectés
+//const games = {};
 
 // On s'assure que le dossier de sauvegardes existe au démarrage
 try {

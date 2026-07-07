@@ -6,7 +6,8 @@ import { Player } from './js/player.js';
 import {saveGame, loadGame} from './js/save.js';
 import {loadAllTextures} from './js/textures.js';
 import {NetworkManager} from './js/networks.js';
-import { OtherPlayer } from './js/otherPlayer.js';
+import {waitForMenuChoice} from './js/menu.js';
+
 
 // --- VARIABLES GLOBALES ---
 const player = new Player();
@@ -27,28 +28,35 @@ async function main() {
     if (!adapter) { return; }
     const device = await adapter.requestDevice();
 
-    const network = new NetworkManager("ws://localhost:8000/ws");
+    // LE JEU ATTEND LE CHOIX DU MENU
+    const choice = await waitForMenuChoice();
 
-    // --- AJOUTE CE BLOC ---
-    network.onBlockAction = (action, x, y, z, blockId) => {
-        if (action === "break") {
-            world.setBlock(x, y, z, BLOCK.AIR);
-        } else if (action === "place") {
-            world.setBlock(x, y, z, blockId);
-        }
-        
-        // On reconstruit le mesh pour que le trou apparaisse chez l'autre joueur !
-        const newVertices = world.buildMesh();
-        if (newVertices.byteLength > vertexBuffer.size) {
-            vertexBuffer.destroy();
-            vertexBuffer = device.createBuffer({
-                size: newVertices.byteLength,
-                usage: GPUBufferUsage.VERTEX | GPUBuffer_USAGE.COPY_DST,
-            });
-        }
-        device.queue.writeBuffer(vertexBuffer, 0, newVertices);
-        vertices = newVertices;
-    };
+    // ON INITIALISE LE RÉSEAU SEULEMENT SI C'EST MULTI
+    let network = null;
+    if (choice.mode === 'multi') {
+        network = new NetworkManager(`ws://${choice.ip}/ws`);
+
+        // --- AJOUTE CE BLOC ---
+        network.onBlockAction = (action, x, y, z, blockId) => {
+            if (action === "break") {
+                world.setBlock(x, y, z, BLOCK.AIR);
+            } else if (action === "place") {
+                world.setBlock(x, y, z, blockId);
+            }
+            
+            // On reconstruit le mesh pour que le trou apparaisse chez l'autre joueur !
+            const newVertices = world.buildMesh();
+            if (newVertices.byteLength > vertexBuffer.size) {
+                vertexBuffer.destroy();
+                vertexBuffer = device.createBuffer({
+                    size: newVertices.byteLength,
+                    usage: GPUBufferUsage.VERTEX | GPUBuffer_USAGE.COPY_DST,
+                });
+            }
+            device.queue.writeBuffer(vertexBuffer, 0, newVertices);
+            vertices = newVertices;
+        };
+    }
     // ------------------------
 
     const canvas = document.getElementById('webgpu-canvas');
@@ -439,16 +447,16 @@ async function main() {
                 device.queue.writeBuffer(vertexBuffer, 0, newVertices);
                 vertices = newVertices; // Mettre à jour les vertices pour le rendu
                 updateLights(); // Mettre à jour les lumières si nécessaire
-
-                // NOUVEAU : ON DIT AU SERVEUR CE QU'ON A FAIT
-                if (event.button === 0) {
-                    // Si on a cassé, on envoie le type "break"
-                    network.sendBlockAction("break", target.x, target.y, target.z);
-                } else if (event.button === 2) {
-                    // Si on a posé, on envoie le type "place" avec l'id du bloc
-                    network.sendBlockAction("place", px, py, pz, selectedBlock);
-                }
             }
+            // NOUVEAU : ON DIT AU SERVEUR CE QU'ON A FAIT
+            if (event.button === 0) {
+                // Si on a cassé, on envoie le type "break"
+                network.sendBlockAction("break", target.x, target.y, target.z);
+            } else if (event.button === 2) {
+                // Si on a posé, on envoie le type "place" avec l'id du bloc
+                network.sendBlockAction("place", px, py, pz, selectedBlock);
+            }
+        
         }
     });
 
@@ -588,7 +596,9 @@ async function main() {
         device.queue.submit([commandEncoder.finish()]);
 
         // ENVOI RESEAU
-        network.sendPosition(player.x, player.y, player.z, time);
+        if (network) {
+            network.sendPosition(player.x, player.y, player.z, time);
+        }
         requestAnimationFrame(frame);
     }
 
@@ -621,6 +631,7 @@ async function main() {
 
     updateLights();
     updateHotbar(2);
+
     requestAnimationFrame(frame);
     
 }
