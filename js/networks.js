@@ -21,7 +21,7 @@ export class NetworkManager {
             const data = JSON.parse(event.data);
             //console.log("📨 Réponse du serveur :", event.data);
             // NOUVEAU : GESTION DES BLOCS
-            if (data.type === "block") {
+            if (data.type === "block_action") {
                 if (this.onBlockAction) {
                     this.onBlockAction(data.action, data.x, data.y, data.z, data.blockId);
                 }
@@ -64,11 +64,12 @@ export class NetworkManager {
         }
     }
 
-    sendBlockAction(action, x, y, z, blockId = 0) {
+   sendBlockAction(action, x, y, z, blockId = 0) {
         if (this.ws.readyState !== WebSocket.OPEN) return;
+        
         this.ws.send(JSON.stringify({
-            type: "block",
-            action: action, // "break" ou "place"
+            type: "block_action",
+            action: action,
             x: x,
             y: y,
             z: z,

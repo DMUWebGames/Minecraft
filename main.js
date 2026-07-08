@@ -417,6 +417,7 @@ async function main() {
         const target = player.raycast(world);
         if (target) {
             let modified = false;
+            let px, py, pz;
 
             if (event.button === 0) {
                 // Casser le bloc
@@ -424,9 +425,9 @@ async function main() {
                 modified = true;
             } else if (event.button === 2) {
                 // Poser un bloc de bois devant le joueur
-                let px = target.x;
-                let py = target.y + 1;
-                let pz = target.z;
+                px = target.x;
+                py = target.y + 1;
+                pz = target.z;
 
                 if (world.getBlock(px, py, pz) === BLOCK.AIR) {
                     world.setBlock(px, py, pz, selectedBlock);
@@ -447,15 +448,17 @@ async function main() {
                 device.queue.writeBuffer(vertexBuffer, 0, newVertices);
                 vertices = newVertices; // Mettre à jour les vertices pour le rendu
                 updateLights(); // Mettre à jour les lumières si nécessaire
+
+                // NOUVEAU : ON DIT AU SERVEUR CE QU'ON A FAIT
+                if (event.button === 0) {
+                    // Si on a cassé, on envoie le type "break"
+                    network.sendBlockAction("break", target.x, target.y, target.z);
+                } else if (event.button === 2) {
+                    // Si on a posé, on envoie le type "place" avec l'id du bloc
+                    network.sendBlockAction("place", px, py, pz, selectedBlock);
+                }
             }
-            // NOUVEAU : ON DIT AU SERVEUR CE QU'ON A FAIT
-            if (event.button === 0) {
-                // Si on a cassé, on envoie le type "break"
-                network.sendBlockAction("break", target.x, target.y, target.z);
-            } else if (event.button === 2) {
-                // Si on a posé, on envoie le type "place" avec l'id du bloc
-                network.sendBlockAction("place", px, py, pz, selectedBlock);
-            }
+            
         
         }
     });

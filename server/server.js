@@ -5,7 +5,7 @@
 const PORT = 8000;
 const SAVES_DIR = "./saves";
 const connectedSockets = new Set(); // Pour garder une trace des WebSockets connectés
-//const games = {};
+const worldBlocks = [];
 
 // On s'assure que le dossier de sauvegardes existe au démarrage
 try {
@@ -51,13 +51,19 @@ async function handler (req){
             // On transforme le texte JSON en objet JavaScript
             const data = JSON.parse(event.data);
 
-            // Si c'est une mise à jour de position
-            if (data.type === "position") {
-                // On affiche juste le X pour le moment, pour ne pas spammer trop la console
-                //console.log(`📍 Joueur X: ${data.x.toFixed(1)}, Y: ${data.y.toFixed(1)}`);
-                playerdata.set(socket, { x: data.x, y: data.y, z: data.z });
+            // Si c'est une action sur un bloc (casser ou poser)
+            if (data.type === "block_action") {
+                // On mémorise le bloc
+                if (data.action === "place") {
+                    worldBlocks.push({ x: data.x, y: data.y, z: data.z, blockId: data.blockId });
+                } else if (data.action === "break") {
+                    // On le retire de la liste
+                    const index = worldBlocks.findIndex(b => b.x === data.x && b.y === data.y && b.z === data.z);
+                    if (index !== -1) worldBlocks.splice(index, 1);
+                }
+                // Dans socket.onmessage, après le if (data.type === "block_action")
+                console.log(`📝 Cahier : ${worldBlocks.length} bloc(s)`);
             }
-
             // On parcourt tous les joueurs connectés
             for (const client of connectedSockets) {
                 // Si ce n'est PAS le joueur qui a envoyé le message, on lui transmet

@@ -1,7 +1,7 @@
 //js/menu.js
 
 let gameMode = null; // Variable globale pour stocker le mode de jeu sélectionné
-let serverIp = "localhost/8000"; // Valeur par défaut pour l'IP du serveur
+let serverIp = "localhost:8000"; // Valeur par défaut pour l'IP du serveur
 
 // Fonction appelée par le bouton HTML "Jouer en Solo"
 window.startSolo = function() {
