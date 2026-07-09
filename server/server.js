@@ -45,6 +45,8 @@ async function handler (req){
             console.log("📱 Connecté au serveur multijoueur !");
             playerdata.set(event.target, { x: 0, y: 0, z: 0 }); // On initialise la position du joueur
             connectedSockets.add(socket); // On garde une trace du socket connecté
+
+            socket.send(JSON.stringify({ type: "world_sync", blocks: worldBlocks }));
         };
 
         socket.onmessage = (event) => {
@@ -54,12 +56,21 @@ async function handler (req){
             // Si c'est une action sur un bloc (casser ou poser)
             if (data.type === "block_action") {
                 // On mémorise le bloc
+                const index = worldBlocks.findIndex(b => b.x === data.x && b.y === data.y && b.z === data.z);
+
                 if (data.action === "place") {
-                    worldBlocks.push({ x: data.x, y: data.y, z: data.z, blockId: data.blockId });
+                    if (index !== -1) {
+                        worldBlocks[index].blockId = data.blockId;
+                    }else{
+                        worldBlocks.push({ x: data.x, y: data.y, z: data.z, blockId: data.blockId });
+                    }
                 } else if (data.action === "break") {
                     // On le retire de la liste
-                    const index = worldBlocks.findIndex(b => b.x === data.x && b.y === data.y && b.z === data.z);
-                    if (index !== -1) worldBlocks.splice(index, 1);
+                    if (index !== -1) {
+                        worldBlocks[index].blockId = 0; // On peut aussi le marquer comme "vide"
+                    }else{
+                        worldBlocks.push({ x: data.x, y: data.y, z: data.z, blockId: 0 });
+                    }
                 }
                 // Dans socket.onmessage, après le if (data.type === "block_action")
                 console.log(`📝 Cahier : ${worldBlocks.length} bloc(s)`);

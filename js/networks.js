@@ -8,6 +8,8 @@ export class NetworkManager {
 
         this.networkTickRate = 50; // en millisecondes
         this.onBlockAction = null;
+        this.onWorldSync = null;
+        this.onPlayerPositionUpdate = null;
 
         // Quand le téléphone se connecte...
         this.ws.onopen = () => {
@@ -19,11 +21,23 @@ export class NetworkManager {
         this.ws.onmessage = (event) => {
             // Plus tard, c'est ici qu'on mettra à jour la position des autres joueurs
             const data = JSON.parse(event.data);
-            //console.log("📨 Réponse du serveur :", event.data);
-            // NOUVEAU : GESTION DES BLOCS
+            
+            // Reception de l'historique 
+            if (data.type === "world_sync" && this.onWorldSync) {
+                this.onWorldSync(data.blocks);
+            }
+
+            // GESTION DES BLOCS
             if (data.type === "block_action") {
                 if (this.onBlockAction) {
                     this.onBlockAction(data.action, data.x, data.y, data.z, data.blockId);
+                }
+            }
+
+            // POSITION DES AUTRES JOUEURS
+            if (data.type === "position") {
+                if (this.onPlayerPositionUpdate) {
+                    this.onPlayerPositionUpdate(data.x, data.y, data.z);
                 }
             }
         };

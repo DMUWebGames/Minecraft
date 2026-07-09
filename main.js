@@ -36,7 +36,26 @@ async function main() {
     if (choice.mode === 'multi') {
         network = new NetworkManager(`ws://${choice.ip}/ws`);
 
-        // --- AJOUTE CE BLOC ---
+        // Quand on reçoit l'historique
+        network.onWorldSync = (blocks) => {
+            console.log(`📦 Chargement de ${blocks.length} bloc(s) depuis le serveur`);
+            for (const b of blocks) {
+                world.setBlock(b.x, b.y, b.z, b.blockId);
+            }
+            // Rebuild le mesh
+            const newVertices = world.buildMesh();
+            if (newVertices.byteLength > vertexBuffer.size) {
+                vertexBuffer.destroy();
+                vertexBuffer = device.createBuffer({
+                    size: newVertices.byteLength,
+                    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+                });
+            }
+            device.queue.writeBuffer(vertexBuffer, 0, newVertices);
+            vertices = newVertices;
+        };
+
+        // AJOUTE CE BLOC 
         network.onBlockAction = (action, x, y, z, blockId) => {
             if (action === "break") {
                 world.setBlock(x, y, z, BLOCK.AIR);
@@ -55,6 +74,10 @@ async function main() {
             }
             device.queue.writeBuffer(vertexBuffer, 0, newVertices);
             vertices = newVertices;
+        };
+
+        network.onOtherPlayerPosition = (x, y, z) => {
+            console.log(`👤 Autre joueur vu à : X=${x.toFixed(1)} Y=${y.toFixed(1)} Z=${z.toFixed(1)}`);
         };
     }
     // ------------------------

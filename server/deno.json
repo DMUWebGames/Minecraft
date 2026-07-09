@@ -1,0 +1,5 @@
+{
+    tasks: {
+        "start-server": "deno --watch --allow-all server.js",
+    }
+}
