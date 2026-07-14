@@ -4,7 +4,7 @@
  
 const PORT = 8000;
 const SAVES_DIR = "./saves";
-const connectedSockets = new Set(); // Pour garder une trace des WebSockets connectés
+const rooms = new Map(); // Map qui contient : "ABC123" -> Set de WebSockets
 const worldBlocks = [];
 
 // On s'assure que le dossier de sauvegardes existe au démarrage
@@ -34,18 +34,32 @@ async function handler (req){
 
     // Gestion des WebSockets 
     if (url.pathname === "/ws" &&  req.headers.get("upgrade") === "websocket") {
+
+        //ON LIT LE NUMERO DE LA SALLE ICI (avant d'ouvrir le WebSocket)
+        const requestedRoom = url.searchParams.get("room") || "default";
+
         // Deno fait la poignée de main magique
         const { socket, response } = Deno.upgradeWebSocket(req);
-        console.log("🔌 Un joueur (navigateur) tente de se connecter au WebSocket...");
-        //console.log("🔌 Socket info :", socket);
-
+        console.log(`🔌 Connexion WebSocket pour la salle : ${requestedRoom}`);
+        
         //Quand le téléphone sonne...
         socket.onopen = (event) => {
-            //console.log("event : ", event);
-            console.log("📱 Connecté au serveur multijoueur !");
-            playerdata.set(event.target, { x: 0, y: 0, z: 0 }); // On initialise la position du joueur
-            connectedSockets.add(socket); // On garde une trace du socket connecté
+            console.log(`📱 Joueur connecté à la salle : ${requestedRoom}`);
 
+            // Si la salle n'existe pas encore, on la crée
+            if (!rooms.has(requestedRoom)) {
+                rooms.set(requestedRoom, new Set());
+                console.log(`🏠 Création de la salle ${requestedRoom}`);
+            }
+
+            // On ajoute le joueur à cette salle précise
+            rooms.get(requestedRoom).add(socket);
+            
+            // On sauvegarde quelle salle appartient à ce socket
+            socket.currentRoom = requestedRoom;
+            playerdata.set(socket, { x: 0, y: 0, z: 0 });
+            
+            // historique
             socket.send(JSON.stringify({ type: "world_sync", blocks: worldBlocks }));
         };
 
@@ -76,17 +90,35 @@ async function handler (req){
                 console.log(`📝 Cahier : ${worldBlocks.length} bloc(s)`);
             }
             // On parcourt tous les joueurs connectés
-            for (const client of connectedSockets) {
-                // Si ce n'est PAS le joueur qui a envoyé le message, on lui transmet
-                if (client !== socket && client.readyState === WebSocket.OPEN) {
-                    client.send(event.data); 
+            if (data.type === "position") {
+                playerdata.set(socket, { x: data.x, y: data.y, z: data.z });
+            }
+
+            // Le routeur 
+            const myRoom = socket.currentRoom;
+            const clientsInRoom = rooms.get(myRoom);
+
+            if (clientsInRoom) {
+                for (const client of clientsInRoom) {
+                    // On n'envoie pas le message à celui qui l'a envoyé
+                    if (client !== socket && client.readyState === WebSocket.OPEN) {
+                        client.send(event.data);
+                    }
                 }
             }
         };
 
         socket.onclose = () => {
-            console.log("❌ Le joueur a quitté le WebSocket.");
-            connectedSockets.delete(socket); // On supprime le socket de la liste des connectés
+            console.log(`❌ Le joueur a quitté le WebSocket ${socket.currentRoom}`);
+            const myRoom = socket.currentRoom;
+            if (myRoom && rooms.has(myRoom)) {
+                rooms.get(myRoom).delete(socket);
+
+                if (rooms.get(myRoom).size === 0) {
+                    rooms.delete(myRoom);
+                    console.log(`🏠 La salle ${myRoom} est détruite (vide).`);
+                }
+            }
             playerdata.delete(socket); // On supprime les données du joueur
         };
         // OBLIGATOIRE : on doit renvoyer cette réponse spéciale pour accepter la connexion

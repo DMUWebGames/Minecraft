@@ -1,8 +1,8 @@
 // js/network.js
 
 export class NetworkManager {
-    constructor(url) {
-        this.ws = new WebSocket(url);
+    constructor(url, roomId) {
+        this.ws = new WebSocket(`${url}?room=${roomId}`);
         this.lastSentPos = { x: 0, y: 0, z: 0 };
         this.lastSendTime = 0;
 
