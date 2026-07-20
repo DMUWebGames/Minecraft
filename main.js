@@ -34,7 +34,7 @@ async function main() {
     // ON INITIALISE LE RÉSEAU SEULEMENT SI C'EST MULTI
     let network = null;
     if (choice.mode === 'multi') {
-        network = new NetworkManager(`ws://${choice.ip}/ws`, choice.room);
+        network = new NetworkManager(`${choice.ip}/ws`, choice.room);
 
         // Quand on reçoit l'historique
         network.onWorldSync = (blocks) => {
