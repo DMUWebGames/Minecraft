@@ -8,12 +8,14 @@ const rooms = new Map(); // Map qui contient : "ABC123" -> Set de WebSockets
 const worldBlocks = [];
 
 // On s'assure que le dossier de sauvegardes existe au démarrage
-try {
-    await Deno.mkdir(SAVES_DIR, { recursive : true });
-} catch (err) {
-    console.error("Impossible de créer le dossier saves :", err);
+const isDenoDeploy = Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
+if (!isDenoDeploy) {
+    try {
+        await Deno.mkdir(SAVES_DIR, { recursive : true });
+    } catch (err) {
+        console.error("Impossible de créer le dossier saves :", err);
+    }
 }
-
 // En-têtes CORS : nécessaires pour que ton jeu (servi depuis un autre port,
 // par exemple via VS Code Live Server sur le port 5500) puisse appeler ce serveur.
 const corsHeaders = {
