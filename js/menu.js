@@ -1,7 +1,10 @@
 //js/menu.js
 
 let gameMode = null; // Variable globale pour stocker le mode de jeu sélectionné
-let serverIp = "localhost:8000"; // Valeur par défaut pour l'IP du serveur
+
+// Si on est en local, on utilise localhost. Sinon, on utilise le vrai serveur.
+const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+let serverIp = isLocal ? "localhost:8000" : "https://minecraft-server.mohameddjoncoundasissoko.deno.net";
 
 // Fonction appelée par le bouton HTML "Jouer en Solo"
 window.startSolo = function() {
@@ -27,6 +30,7 @@ window.startMulti = function() {
     } else {
         // CAS 2 : C'EST L'HÔTE QUI CRÉE LA PARTIE
         const roomId = Math.random().toString(36).substring(2, 8).toUpperCase(); 
+        //crypto.randomUUID(); // Génère un identifiant unique pour la partie
         window.currentRoomId = roomId; 
         
         const gameUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;

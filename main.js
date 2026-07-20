@@ -7,6 +7,7 @@ import {saveGame, loadGame} from './js/save.js';
 import {loadAllTextures} from './js/textures.js';
 import {NetworkManager} from './js/networks.js';
 import {waitForMenuChoice} from './js/menu.js';
+import { OtherPlayer } from './js/otherPlayer.js';
 
 
 // --- VARIABLES GLOBALES ---
@@ -17,8 +18,6 @@ const keys = {};
 let selectedBlock = BLOCK.DIRT; // Par défaut, on pose de l'herbe
 let gameTime = 0;
 let isPointerLocked = false; 
-
-
 
 // I. Initialisation
 async function main() {
@@ -31,6 +30,7 @@ async function main() {
     // LE JEU ATTEND LE CHOIX DU MENU
     const choice = await waitForMenuChoice();
 
+    const otherPlayer = new OtherPlayer(device);
     // ON INITIALISE LE RÉSEAU SEULEMENT SI C'EST MULTI
     let network = null;
     if (choice.mode === 'multi') {
@@ -76,8 +76,12 @@ async function main() {
             vertices = newVertices;
         };
 
-        network.onOtherPlayerPosition = (x, y, z) => {
+        network.onPlayerPositionUpdate = (x, y, z) => {
             console.log(`👤 Autre joueur vu à : X=${x.toFixed(1)} Y=${y.toFixed(1)} Z=${z.toFixed(1)}`);
+            // isFinite empeche les NaN et Infinity
+            if (isFinite(x) && isFinite(y) && isFinite(z)) {
+                otherPlayer.updatePosition(x, y, z);
+            }
         };
     }
     // ------------------------
@@ -180,12 +184,31 @@ async function main() {
 
     let vertices = world.buildMesh();
 
-
     let vertexBuffer = device.createBuffer({
         size: vertices.byteLength,
         usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
     });
     device.queue.writeBuffer(vertexBuffer, 0, vertices);
+
+    // CRÉATION DU CUBE POUR L'AUTRE JOUEUR
+    const playerVertices = new Float32Array([
+        // Face devant (Z=0.5)
+        -0.3, -0.5,  0.3,  0.0, 0.0,  0.0,  0.0,  1.0,
+         0.3, -0.5,  0.3,  1.0, 0.0,  0.0,  0.0,  1.0,
+         0.3,  0.5,  0.3,  1.0, 1.0,  0.0,  0.0,  1.0,
+        -0.3,  0.5,  0.3,  0.0, 1.0,  0.0,  0.0,  1.0,
+        // Face derrière (Z=-0.5)
+         0.3, -0.5, -0.3,  0.0, 0.0,  0.0,  0.0, -1.0,
+        -0.3, -0.5, -0.3,  1.0, 0.0,  0.0,  0.0, -1.0,
+        -0.3,  0.5, -0.3,  1.0, 1.0,  0.0,  0.0, -1.0,
+         0.3,  0.5, -0.3,  0.0, 1.0,  0.0,  0.0, -1.0,
+    ]);
+
+    const playerVertexBuffer = device.createBuffer({
+        size: playerVertices.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    });
+    device.queue.writeBuffer(playerVertexBuffer, 0, playerVertices);
 
     const vertexBufferLayout = {
         arrayStride: 32, // 3 POS (12 bytes) + 2 UV (8 bytes) + 3 Normale (12 bytes) = 32 bytes par vertex
@@ -369,6 +392,18 @@ async function main() {
     // 64 bytes pour la matrice + 16 bytes pour le temps (alignement WGSL oblige)
     const uniformBuffer = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const lightsBuffer = device.createBuffer({ size: 272, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+
+    // BUFFER SPÉCIAL POUR DESSINER L'AUTRE JOUEUR
+    const playerUniformBuffer = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const playerBindGroup = device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(0),
+        entries: [
+            { binding: 0, resource: { buffer: playerUniformBuffer } }, // Le sien !
+            { binding: 1, resource: sampler },
+            { binding: 2, resource: texture.createView() },
+            { binding: 3, resource: { buffer: lightsBuffer } }
+        ],
+    });
 
     const bindGroup = device.createBindGroup({
         layout: pipeline.getBindGroupLayout(0),
@@ -611,12 +646,26 @@ async function main() {
         // Dans main.js, dans la boucle frame()
         document.getElementById('debug-coords').textContent = `X: ${player.x.toFixed(1)} | Z: ${player.z.toFixed(1)} | Chunk: (${Math.floor(player.x/16)}, ${Math.floor(player.z/16)})`;
 
+        // DESSIN DU MONDE
         renderPass.setPipeline(pipeline);
         renderPass.setBindGroup(0, bindGroup);
         renderPass.setVertexBuffer(0, vertexBuffer);
         renderPass.draw(vertices.length / 8); // Juste le cube
 
-        
+        // 2. ON DESSINE L'AUTRE JOUEUR
+        if (network && otherPlayer) {
+            // La classe OtherPlayer calcule la magie du Billboard toute seule !
+            const playerMvp = otherPlayer.getMatrix(viewMatrix, projectionMatrix);
+            
+            // On envoie la matrice au shader
+            device.queue.writeBuffer(playerUniformBuffer, 0, playerMvp);
+
+            // On dessine le carré plat (6 sommets = 2 triangles)
+            renderPass.setBindGroup(0, playerBindGroup);
+            renderPass.setVertexBuffer(0, otherPlayer.buffer); // Le buffer de la classe !
+            renderPass.draw(36); 
+        }
+
         renderPass.end();
 
         device.queue.submit([commandEncoder.finish()]);
