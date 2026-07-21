@@ -40,6 +40,7 @@ function getOrCreateRoom(roomId) {
 
 async function handler(req) {
     const url = new URL(req.url);
+    console.log(req.method , url.pathname);
 
     if (req.method === "OPTIONS") {
         return new Response(null, { headers: corsHeaders });
