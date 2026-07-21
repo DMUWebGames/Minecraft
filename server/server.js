@@ -5,7 +5,6 @@
 const PORT = 8000;
 const SAVES_DIR = "./saves";
 const rooms = new Map(); // Map qui contient : "ABC123" -> Set de WebSockets
-const worldBlocks = [];
 
 // On s'assure que le dossier de sauvegardes existe au démarrage
 const isDenoDeploy = Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
@@ -50,19 +49,19 @@ async function handler (req){
 
             // Si la salle n'existe pas encore, on la crée
             if (!rooms.has(requestedRoom)) {
-                rooms.set(requestedRoom, new Set());
+                rooms.set(requestedRoom, { sockets : new Set(), blocks : [] });
                 console.log(`🏠 Création de la salle ${requestedRoom}`);
             }
 
             // On ajoute le joueur à cette salle précise
-            rooms.get(requestedRoom).add(socket);
+            rooms.get(requestedRoom).sockets.add(socket);
             
             // On sauvegarde quelle salle appartient à ce socket
             socket.currentRoom = requestedRoom;
             playerdata.set(socket, { x: 0, y: 0, z: 0 });
             
             // historique
-            socket.send(JSON.stringify({ type: "world_sync", blocks: worldBlocks }));
+            socket.send(JSON.stringify({ type: "world_sync", blocks: rooms.get(requestedRoom).blocks }));
         };
 
         socket.onmessage = (event) => {
@@ -71,25 +70,27 @@ async function handler (req){
 
             // Si c'est une action sur un bloc (casser ou poser)
             if (data.type === "block_action") {
+                // On va chercher dans le cahier de LA SALLE du joueur
+                const roomData = rooms.get(socket.currentRoom);
                 // On mémorise le bloc
-                const index = worldBlocks.findIndex(b => b.x === data.x && b.y === data.y && b.z === data.z);
+                const index = roomData.blocks.findIndex(b => b.x === data.x && b.y === data.y && b.z === data.z);
 
                 if (data.action === "place") {
                     if (index !== -1) {
-                        worldBlocks[index].blockId = data.blockId;
+                        roomData.blocks[index].blockId = data.blockId;
                     }else{
-                        worldBlocks.push({ x: data.x, y: data.y, z: data.z, blockId: data.blockId });
+                        roomData.blocks.push({ x: data.x, y: data.y, z: data.z, blockId: data.blockId });
                     }
                 } else if (data.action === "break") {
                     // On le retire de la liste
                     if (index !== -1) {
-                        worldBlocks[index].blockId = 0; // On peut aussi le marquer comme "vide"
+                        roomData.blocks[index].blockId = 0; // On peut aussi le marquer comme "vide"
                     }else{
-                        worldBlocks.push({ x: data.x, y: data.y, z: data.z, blockId: 0 });
+                        roomData.blocks.push({ x: data.x, y: data.y, z: data.z, blockId: 0 });
                     }
                 }
                 // Dans socket.onmessage, après le if (data.type === "block_action")
-                console.log(`📝 Cahier : ${worldBlocks.length} bloc(s)`);
+                console.log(`📝 Cahier de la salle ${socket.currentRoom} : ${roomData.blocks.length} bloc(s)`);
             }
             // On parcourt tous les joueurs connectés
             if (data.type === "position") {
@@ -101,7 +102,7 @@ async function handler (req){
             const clientsInRoom = rooms.get(myRoom);
 
             if (clientsInRoom) {
-                for (const client of clientsInRoom) {
+                for (const client of clientsInRoom.sockets) {
                     // On n'envoie pas le message à celui qui l'a envoyé
                     if (client !== socket && client.readyState === WebSocket.OPEN) {
                         client.send(event.data);
@@ -114,7 +115,7 @@ async function handler (req){
             console.log(`❌ Le joueur a quitté le WebSocket ${socket.currentRoom}`);
             const myRoom = socket.currentRoom;
             if (myRoom && rooms.has(myRoom)) {
-                rooms.get(myRoom).delete(socket);
+                rooms.get(myRoom).sockets.delete(socket);
 
                 if (rooms.get(myRoom).size === 0) {
                     rooms.delete(myRoom);
