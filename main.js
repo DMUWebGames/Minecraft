@@ -70,7 +70,7 @@ async function main() {
                 vertexBuffer.destroy();
                 vertexBuffer = device.createBuffer({
                     size: newVertices.byteLength,
-                    usage: GPUBufferUsage.VERTEX | GPUBufferUSAGE.COPY_DST,
+                    usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
                 });
             }
             device.queue.writeBuffer(vertexBuffer, 0, newVertices);
