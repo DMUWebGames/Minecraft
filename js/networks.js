@@ -2,6 +2,7 @@
 
 export class NetworkManager {
     constructor(url, roomId) {
+        console.log("🔍 Tentative de connexion à :", `${url}?room=${roomId}`);
         this.ws = new WebSocket(`${url}?room=${roomId}`);
         this.lastSentPos = { x: 0, y: 0, z: 0 };
         this.lastSendTime = 0;
