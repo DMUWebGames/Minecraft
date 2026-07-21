@@ -4,7 +4,7 @@ let gameMode = null; // Variable globale pour stocker le mode de jeu sélectionn
 
 // Si on est en local, on utilise localhost. Sinon, on utilise le vrai serveur.
 const isLocal = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-let serverIp = isLocal ? "ws://localhost:8000" : "wss://minecraft-server.mohameddjoncoundasissoko.deno.net";
+let serverIp = isLocal ? "ws://localhost:8000" : "minecraft-server.mohameddjoncoundasissoko.deno.net";
 
 // Fonction appelée par le bouton HTML "Jouer en Solo"
 window.startSolo = function() {
