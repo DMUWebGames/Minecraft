@@ -19,6 +19,11 @@ let selectedBlock = BLOCK.DIRT; // Par défaut, on pose de l'herbe
 let gameTime = 0;
 let isPointerLocked = false; 
 
+const soundBreak = new Audio('sounds/break.mp3');
+const soundPlace = new Audio('sounds/place.mp3');
+const soundGlass = new Audio('sounds/glass_break.mp3');
+const soundWood = new Audio('sounds/wood_break.mp3');
+
 // I. Initialisation
 async function main() {
     // ... (Initialisation WebGPU standard, je zappe pour aller au cœur du code) ...
@@ -479,9 +484,20 @@ async function main() {
             let px, py, pz;
 
             if (event.button === 0) {
+                // wich block is in front of the player
+                const brokenBlockId = world.getBlock(target.x, target.y, target.z);
+
                 // Casser le bloc
                 world.setBlock(target.x, target.y, target.z, BLOCK.AIR);
                 modified = true;
+
+                if ( brokenBlockId === BLOCK.GLASS) {
+                    soundGlass.cloneNode().play().catch(() => {});
+                }else if (brokenBlockId === BLOCK.WOOD) {
+                    soundWood.cloneNode().play().catch(() => {});
+                } else {
+                    soundBreak.cloneNode().play().catch(() => {});
+                }
             } else if (event.button === 2) {
                 // Poser un bloc de bois devant le joueur
                 px = target.x;
@@ -491,6 +507,7 @@ async function main() {
                 if (world.getBlock(px, py, pz) === BLOCK.AIR) {
                     world.setBlock(px, py, pz, selectedBlock);
                     modified = true;
+                    soundPlace.cloneNode().play().catch(() => {});
                 }
             }
             // Rebuild du mesh après modification
