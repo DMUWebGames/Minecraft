@@ -21,7 +21,15 @@ export class NetworkManager {
         // Quand on reçoit un message (pour plus tard)
         this.ws.onmessage = (event) => {
             // Plus tard, c'est ici qu'on mettra à jour la position des autres joueurs
-            const data = JSON.parse(event.data);
+            let data;
+
+            try{
+                data = JSON.parse(event.data);
+            }catch(err){
+                console.warn("Message Websocket invalide ignoré", event.data, err);
+                return;
+            }
+            
             
             // Reception de l'historique 
             if (data.type === "world_sync" && this.onWorldSync) {
