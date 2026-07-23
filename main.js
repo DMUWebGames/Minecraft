@@ -3,11 +3,12 @@
 import { World } from './js/world.js';
 import { BLOCK } from './js/blocks.js';
 import { Player } from './js/player.js'; 
-import {saveGame, loadGame} from './js/save.js';
-import {loadAllTextures} from './js/textures.js';
-import {NetworkManager} from './js/networks.js';
-import {waitForMenuChoice} from './js/menu.js';
+import { saveGame, loadGame } from './js/save.js';
+import { loadAllTextures } from './js/textures.js';
+import { NetworkManager } from './js/networks.js';
+import { waitForMenuChoice } from './js/menu.js';
 import { OtherPlayer } from './js/otherPlayer.js';
+import { initChat, displayChatMessage, isChatting } from './js/chat.js';
 
 
 // --- VARIABLES GLOBALES ---
@@ -93,6 +94,10 @@ async function main() {
     // ------------------------
 
     const canvas = document.getElementById('webgpu-canvas');
+
+    initChat(network,canvas);
+    network.onChat = displayChatMessage;
+
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     const context = canvas.getContext('webgpu');
@@ -525,13 +530,15 @@ async function main() {
                 vertices = newVertices; // Mettre à jour les vertices pour le rendu
                 updateLights(); // Mettre à jour les lumières si nécessaire
 
-                // NOUVEAU : ON DIT AU SERVEUR CE QU'ON A FAIT
-                if (event.button === 0) {
-                    // Si on a cassé, on envoie le type "break"
-                    network.sendBlockAction("break", target.x, target.y, target.z);
-                } else if (event.button === 2) {
-                    // Si on a posé, on envoie le type "place" avec l'id du bloc
-                    network.sendBlockAction("place", px, py, pz, selectedBlock);
+                if (network){
+                    // NOUVEAU : ON DIT AU SERVEUR CE QU'ON A FAIT
+                    if (event.button === 0) {
+                        // Si on a cassé, on envoie le type "break"
+                        network.sendBlockAction("break", target.x, target.y, target.z);
+                    } else if (event.button === 2) {
+                        // Si on a posé, on envoie le type "place" avec l'id du bloc
+                        network.sendBlockAction("place", px, py, pz, selectedBlock);
+                    }
                 }
             }
             
@@ -586,7 +593,9 @@ async function main() {
             return;
         }
         // Mettre à jour la logique du jeu (mouvement du joueur, etc.)
-        player.update(dt, keys, world);
+        if (!isChatting()){
+            player.update(dt, keys, world);
+        }
 
         // Recharge les chunks si le joueur a changé de chunk
         const chunksChanged = world.update(player.x, player.z);

@@ -49,6 +49,10 @@ export class NetworkManager {
                     this.onPlayerPositionUpdate(data.x, data.y, data.z);
                 }
             }
+
+            if (data.type === "chat" && this.onChat) {
+                this.onChat(data.message);
+            }
         };
 
         this.ws.onerror = (error) => {
@@ -97,6 +101,13 @@ export class NetworkManager {
             y: y,
             z: z,
             blockId: blockId
+        }));
+    }
+
+    sendChat(message) {
+        this.ws.send(JSON.stringify({
+            type: "chat",
+            message: message
         }));
     }
 }

@@ -69,3 +69,38 @@ canvas{
     font-size: 10px;
     font-family: monospace;
 }
+
+#chat-container {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    width: 300px;
+    z-index: 100;
+    pointer-events: none; /* Laisse la souris traverser le chat */
+    opacity: 0; /* Caché par défaut */
+    transition: opacity 0.3s;
+}
+#chat-container.active {
+    opacity: 1;
+}
+#chat-messages {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 5px;
+    color: white;
+    text-shadow: 1px 1px 2px black;
+    font-family: monospace;
+    font-size: 14px;
+}
+#chat-input {
+    width: 100%;
+    padding: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid white;
+    color: white;
+    outline: none;
+    display: none; /* Caché par défaut */
+}
+#chat-input:focus {
+    display: block; /* Apparaît quand on écrit */
+}
