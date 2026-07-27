@@ -11,11 +11,13 @@ export class NetworkManager {
         this.onBlockAction = null;
         this.onWorldSync = null;
         this.onPlayerPositionUpdate = null;
+        this.onPlayerName = null;
 
         // Quand le téléphone se connecte...
         this.ws.onopen = () => {
             console.log("📱 Connecté au serveur multijoueur !");
             //this.ws.send("Bonjour Deno, c'est le joueur 1 !");
+            this.ws.send(JSON.stringify({ type: "set_name", name: window.playerName }));
         };
 
         // Quand on reçoit un message (pour plus tard)
@@ -52,6 +54,10 @@ export class NetworkManager {
 
             if (data.type === "chat" && this.onChat) {
                 this.onChat(data.message);
+            }
+
+            if (data.type ==="player_name" && this.onPlayerName){
+                this.onPlayerName(data.name);
             }
         };
 

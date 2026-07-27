@@ -58,11 +58,11 @@ function closeChat() {
     if (canvasInstance) canvasInstance.requestPointerLock();
 }
 
-export function displayChatMessage(message){
+export function displayChatMessage(sender, message){
     const chatBox = document.getElementById('chat-messages');
     const msgDiv = document.createElement('div');
 
-    msgDiv.innerHTML = message;
+    msgDiv.innerHTML = `<strong>${sender}:</strong> ${message}`;
     chatBox.appendChild(msgDiv);
 
     chatBox.scrollTop = chatBox.scrollHeight;

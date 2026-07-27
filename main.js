@@ -19,6 +19,8 @@ const keys = {};
 let selectedBlock = BLOCK.DIRT; // Par défaut, on pose de l'herbe
 let gameTime = 0;
 let isPointerLocked = false; 
+let otherPlayerPos = { x : 0, y : 0, z : 0};
+let otherPlayerConnected = false;
 
 const soundBreak = new Audio('sounds/break.mp3');
 const soundPlace = new Audio('sounds/place.mp3');
@@ -85,18 +87,29 @@ async function main() {
 
         network.onPlayerPositionUpdate = (x, y, z) => {
             console.log(`👤 Autre joueur vu à : X=${x.toFixed(1)} Y=${y.toFixed(1)} Z=${z.toFixed(1)}`);
+            otherPlayerPos.x = x;
+            otherPlayerPos.y = y;
+            otherPlayerPos.z = z;
+            otherPlayerConnected = true;
+
             // isFinite empeche les NaN et Infinity
             if (isFinite(x) && isFinite(y) && isFinite(z)) {
                 otherPlayer.updatePosition(x, y, z);
             }
+        };
+
+        network.onPlayerName = (name) => {
+            document.getElementById('nametag').innerText = name;
         };
     }
     // ------------------------
 
     const canvas = document.getElementById('webgpu-canvas');
 
-    initChat(network,canvas);
-    network.onChat = displayChatMessage;
+    if (network){
+        initChat(network,canvas);
+        network.onChat = (sender, message) => displayChatMessage(sender, message);
+    }
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
@@ -691,6 +704,36 @@ async function main() {
             renderPass.setBindGroup(0, playerBindGroup);
             renderPass.setVertexBuffer(0, otherPlayer.buffer); // Le buffer de la classe !
             renderPass.draw(36); 
+        }
+
+        // PLAYER NAME TAG
+        const nametag = document.getElementById('nametag');
+
+        if (network && otherPlayerConnected) { // On utilise notre variable à nous !
+            
+            // 1. Position 3D de l'autre joueur (montée de 1.2 pour la tête)
+            const pos3D = [otherPlayerPos.x, otherPlayerPos.y + 1.2, otherPlayerPos.z];
+
+            // 2. Matrice de projection combinée
+            const viewProj = glMatrix.mat4.create();
+            glMatrix.mat4.multiply(viewProj, projectionMatrix, viewMatrix);
+
+            // 3. Projection 3D vers 2D écran
+            const projected = glMatrix.vec3.transformMat4(glMatrix.vec3.create(), pos3D, viewProj);
+
+            // 4. S'il est DEVANT la caméra
+            if (projected[2] < 1) {
+                const screenX = (projected[0] * 0.5 + 0.5) * canvas.width;
+                const screenY = (-projected[1] * 0.5 + 0.5) * canvas.height;
+
+                nametag.style.left = screenX + 'px';
+                nametag.style.top = screenY + 'px';
+                nametag.style.display = 'block'; 
+            } else {
+                nametag.style.display = 'none'; 
+            }
+        } else {
+            nametag.style.display = 'none'; 
         }
 
         renderPass.end();

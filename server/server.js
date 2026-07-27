@@ -7,6 +7,7 @@ const rooms = new Map();
 
 // Sauvegardes en mémoire (Deno Deploy ne permet pas d'écrire sur disque)
 const inMemorySaves = new Map();
+const playerdata = new Map();
 
 const isDenoDeploy = Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
 
@@ -59,6 +60,8 @@ async function handler(req) {
             room.playerData.set(socket, { x: 0, y: 0, z: 0 });
             // On envoie LES BLOCS DE CETTE ROOM, pas d'une autre
             socket.send(JSON.stringify({ type: "world_sync", blocks: room.blocks }));
+
+            playerdata.set(socket, { x: 0, y: 0, z: 0, name: "Joueur" });
         };
 
         socket.onmessage = (event) => {
@@ -90,6 +93,35 @@ async function handler(req) {
             // Position du joueur
             if (data.type === "position") {
                 myRoom.playerData.set(socket, { x: data.x, y: data.y, z: data.z });
+            }
+
+            // Le joueur donne son pseudo
+            if (data.type === "set_name") {
+                const pData = playerdata.get(socket);
+                if (pData) pData.name = data.name;
+                
+                // On prévient les AUTRES joueurs de la room quel est notre nom
+                // On utilise myRoom.sockets (défini tout en haut du onmessage)
+                for (const client of myRoom.sockets) {
+                    if (client !== socket && client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({ type: "player_name", name: data.name }));
+                    }
+                }
+                return; 
+            }
+
+            // LE CHAT PERSONNALISÉ
+            if (data.type === "chat") {
+                const senderName = playerdata.get(socket)?.name || "Anonyme";
+                const chatMessage = JSON.stringify({ type: "chat", sender: senderName, message: data.message });
+                
+                // ON ENVOIE À TOUT LE MONDE dans myRoom.sockets
+                for (const client of myRoom.sockets) {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(chatMessage);
+                    }
+                }
+                return; 
             }
 
             // Broadcast : on envoie aux AUTRES joueurs de CETTE ROOM uniquement

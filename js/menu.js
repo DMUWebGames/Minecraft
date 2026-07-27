@@ -15,6 +15,9 @@ window.startSolo = function() {
 
 // Fonction appelée par le bouton HTML "Rejoindre"
 window.startMulti = function() {
+    // On demande le pseudo ICI
+    window.playerName = prompt("Entrez votre pseudo :", "Joueur") || "Joueur";
+
     if (!serverIp) {
         alert("Entrez une adresse IP");
         return;
