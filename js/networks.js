@@ -53,7 +53,7 @@ export class NetworkManager {
             }
 
             if (data.type === "chat" && this.onChat) {
-                this.onChat(data.message);
+                this.onChat(data.sender, data.message);
             }
 
             if (data.type ==="player_name" && this.onPlayerName){
