@@ -5,8 +5,8 @@ const SAVES_DIR = "./saves";
 // Chaque room a SON PROPRE monde : { sockets, blocks, playerData }
 const rooms = new Map();
 
-// Sauvegardes en mémoire (Deno Deploy ne permet pas d'écrire sur disque)
-const inMemorySaves = new Map();
+// Base de données persistante (Survit aux redémarrages sur Deno Deploy)
+const kv = await Deno.openKv();
 const playerdata = new Map();
 
 const isDenoDeploy = Deno.env.get("DENO_DEPLOYMENT_ID") !== undefined;
@@ -170,7 +170,7 @@ async function handler(req) {
             const saveKey = `${data.playerId}_room_${data.roomId || "solo"}`;
 
             if (isDenoDeploy) {
-                inMemorySaves.set(saveKey, JSON.stringify(data));
+                await kv.set(["saves", saveKey], JSON.stringify(data));
             } else {
                 const filePath = `${SAVES_DIR}/${saveKey}.json`;
                 await Deno.writeTextFile(filePath, JSON.stringify(data));
@@ -198,8 +198,9 @@ async function handler(req) {
             let content;
 
             if (isDenoDeploy) {
-                content = inMemorySaves.get(saveKey);
-                if (!content) throw new Error("not found");
+                const result = await kv.get(["saves", saveKey]);
+                if (!result.value) throw new Error("not found");
+                content = result.value;
             } else {
                 const filePath = `${SAVES_DIR}/${saveKey}.json`;
                 content = await Deno.readTextFile(filePath);
@@ -235,7 +236,7 @@ async function saveRoom(roomId, blocks) {
     const data = JSON.stringify({ blocks: blocks });
     
     if (isDenoDeploy) {
-        inMemorySaves.set(saveKey, data);
+        await kv.set(["saves", saveKey], data);
     } else {
         try {
             await Deno.writeTextFile(`${SAVES_DIR}/${saveKey}.json`, data);
@@ -248,7 +249,9 @@ async function loadRoom(roomId) {
     try {
         let content;
         if (isDenoDeploy) {
-            content = inMemorySaves.get(saveKey);
+            const result = await kv.get(["saves", saveKey]);
+            if (!result.value) return null;
+            content = result.value;
             if (!content) return null;
         } else {
             content = await Deno.readTextFile(`${SAVES_DIR}/${saveKey}.json`);

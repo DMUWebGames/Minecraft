@@ -1,5 +1,5 @@
 {
     tasks: {
-        "start-server": "deno --watch --allow-all server.js",
+        "start-server": "deno --watch --allow-all --unstable-kv server.js",
     }
 }
