@@ -3,8 +3,11 @@ import { Chunk } from './chunk.js';
  
 const SERVER_URL = "http://localhost:8000";
 
+const roomId = new URLSearchParams(location.search).get("room");
+
 // Sauvegarde la partie actuelle (position du joueur + tous les chunks chargés)
 export async function saveGame(player, world, playerId = "joueur1") {
+
     const saveData = {
         playerId: playerId,
         player: {
@@ -20,7 +23,11 @@ export async function saveGame(player, world, playerId = "joueur1") {
             chunkZ : chunk.chunkZ,
             blocks : Array.from(chunk.blocks.entries())
         })),
+        roomId
     };
+
+    console.log(saveData.roomId);
+    
 
     try{
         const response = await fetch(`${SERVER_URL}/save`, {
@@ -46,7 +53,7 @@ export async function saveGame(player, world, playerId = "joueur1") {
 // Retourne true si une sauvegarde a bien été chargée, false sinon.
 export async function loadGame(player, world, playerId="joueur1"){
     try {
-        const response = await fetch(`${SERVER_URL}/load?playerId=${playerId}`);
+        const response = await fetch(`${SERVER_URL}/load?room=${roomId}&playerId=${playerId}`);
  
         if (!response.ok) {
             console.log("Aucune sauvegarde trouvée, nouvelle partie.");

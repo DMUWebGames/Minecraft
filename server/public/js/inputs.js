@@ -35,7 +35,7 @@ export function initInputs(state, deps) {
                         state.vertexBuffer.destroy();
                         state.vertexBuffer = device.createBuffer({
                             size: newVertices.byteLength,
-                            usage: GPUBufferUsage.VERTEX | GPUBuffer_USAGE.COPY_DST,
+                            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
                         });
                     }
                     device.queue.writeBuffer(state.vertexBuffer, 0, newVertices);
@@ -51,7 +51,7 @@ export function initInputs(state, deps) {
                     state.vertexBuffer.destroy();
                     state.vertexBuffer = device.createBuffer({
                         size: newVertices.byteLength,
-                        usage: GPUBufferUsage.VERTEX | GPUBuffer_USAGE.COPY_DST,
+                        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
                     });
                     device.queue.writeBuffer(state.vertexBuffer, 0, newVertices);
                     state.vertices = newVertices;
@@ -106,7 +106,7 @@ export function initInputs(state, deps) {
                     state.vertexBuffer.destroy();
                     state.vertexBuffer = device.createBuffer({
                         size: newVertices.byteLength,
-                        usage: GPUBufferUsage.VERTEX | GPUBuffer_USAGE.COPY_DST,
+                        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
                     });
                 }
                 device.queue.writeBuffer(state.vertexBuffer, 0, newVertices);

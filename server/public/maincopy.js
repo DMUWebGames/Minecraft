@@ -13,6 +13,7 @@ import { initChat, displayChatMessage, isChatting } from './js/chat.js';
 
 import { SHADER_CODE } from './js/shaders.js';
 import { initInputs } from './js/inputs.js';
+import { loadGame } from "./js/save.js";
 
 
 // --- VARIABLES GLOBALES ---
@@ -42,6 +43,7 @@ async function main() {
     // LE JEU ATTEND LE CHOIX DU MENU
     const choice = await waitForMenuChoice();
 
+
     // LE PONT VERS INPUTS.JS
     const state = {
         keys: keys,
@@ -55,6 +57,8 @@ async function main() {
     // ON INITIALISE LE RÉSEAU SEULEMENT SI C'EST MULTI
     let network = null;
     if (choice.mode === 'multi') {
+        window.location.search = `room=${choice.room}`;
+
         const wsProtocol = window.location.protocol === "https:" ? "wss://" : "ws://";
         network = new NetworkManager(`${wsProtocol}${choice.ip}/ws`, choice.room);
 
@@ -444,7 +448,6 @@ async function main() {
     });
 
     requestAnimationFrame(frame);
-    
 }
 
 main();

@@ -18,6 +18,11 @@ window.startMulti = function() {
     // On demande le pseudo ICI
     window.playerName = prompt("Entrez votre pseudo :", "Joueur") || "Joueur";
 
+    console.log(window.playerName);
+    
+
+    localStorage.setItem("playerName", window.playerName);
+
     if (!serverIp) {
         alert("Entrez une adresse IP");
         return;

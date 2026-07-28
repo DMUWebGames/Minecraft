@@ -1,3 +1,6 @@
+import { serveDir } from "@std/http"; 
+import { db } from "./db.js";
+
 // server/server.js
 const PORT = 8000;
 const SAVES_DIR = "./saves";
@@ -20,11 +23,6 @@ if (!isDenoDeploy) {
     }
 }
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-};
 
 // Crée une room si elle n'existe pas, la retourne toujours
 function getOrCreateRoom(roomId) {
@@ -39,12 +37,16 @@ function getOrCreateRoom(roomId) {
     return rooms.get(roomId);
 }
 
+
+const publicPattern = new URLPattern({ pathname: "*.(html|js|css|mp3|png)" });
+const homePattern = new URLPattern({ pathname: "/" });
+
 async function handler(req) {
     const url = new URL(req.url);
     console.log(req.method , url.pathname);
 
-    if (req.method === "OPTIONS") {
-        return new Response(null, { headers: corsHeaders });
+    if (homePattern.test(req.url) || publicPattern.test(req.url)) {
+        return serveDir(req, { fsRoot: "public" });
     }
 
     // ==================== WEBSOCKET ====================
@@ -152,71 +154,44 @@ async function handler(req) {
     if (url.pathname === "/save" && req.method === "POST") {
         try {
             const data = await req.json();
-            if (!data.playerId) {
-                return new Response(JSON.stringify({ error: "playerId manquant" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-            }
 
             // Clé unique : playerId + roomId pour différencier les salles
-            const saveKey = `${data.playerId}_room_${data.roomId || "solo"}`;
-
-            if (isDenoDeploy) {
-                inMemorySaves.set(saveKey, JSON.stringify(data));
+            const saveKey = data.roomId; //`${data.playerId}_room_${data.roomId || "solo"}`;
+            
+            const record = db.prepare("SELECT id FROM games WHERE id=:id").get({id: data.roomId});
+            if (record) {
+                db.prepare("UPDATE games SET data=:data WHERE id=:id").run({ id: saveKey, data: JSON.stringify(data) });
             } else {
-                const filePath = `${SAVES_DIR}/${saveKey}.json`;
-                await Deno.writeTextFile(filePath, JSON.stringify(data));
+                db.prepare("INSERT INTO games (id, data) VALUES (:id, :data)").run({ id: saveKey, data: JSON.stringify(data) });
             }
-
             console.log(`💾 Sauvegarde : ${saveKey}`);
-            return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
         } catch (err) {
             console.error("Erreur sauvegarde:", err);
-            return new Response(JSON.stringify({ error: "Erreur serveur" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            return new Response(JSON.stringify({ error: "Erreur serveur" }), { status: 500, headers: { "Content-Type": "application/json" } });
         }
     }
 
     // ==================== CHARGER ====================
     if (url.pathname === "/load" && req.method === "GET") {
-        const playerId = url.searchParams.get("playerId");
-        const roomId = url.searchParams.get("roomId") || "solo";
-
-        if (!playerId) {
-            return new Response(JSON.stringify({ error: "playerId manquant" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
-
+        const roomId = url.searchParams.get("room") || "solo";
         try {
-            const saveKey = `${playerId}_room_${roomId}`;
-            let content;
-
-            if (isDenoDeploy) {
-                content = inMemorySaves.get(saveKey);
-                if (!content) throw new Error("not found");
-            } else {
-                const filePath = `${SAVES_DIR}/${saveKey}.json`;
-                content = await Deno.readTextFile(filePath);
-            }
-
-            return new Response(content, { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            const content = db.prepare("SELECT * FROM games WHERE id=:id").get({ id: roomId });
+            if (!content) throw new Error("not found");
+            return new Response(content.data, { headers: { "Content-Type": "application/json" } });
         } catch (err) {
-            return new Response(JSON.stringify({ error: "Aucune sauvegarde" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            return new Response(JSON.stringify({ error: "Aucune sauvegarde" }), { status: 404, headers: { "Content-Type": "application/json" } });
         }
     }
 
     // ==================== LISTER ====================
     if (url.pathname === "/list" && req.method === "GET") {
-        const files = [];
-        if (isDenoDeploy) {
-            for (const key of inMemorySaves.keys()) files.push(key);
-        } else {
-            for await (const entry of Deno.readDir(SAVES_DIR)) {
-                if (entry.isFile && entry.name.endsWith(".json")) {
-                    files.push(entry.name.replace(".json", ""));
-                }
-            }
-        }
-        return new Response(JSON.stringify({ saves: files }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        const saves = db.prepare("SELECT id FROM games").all().map(s => s.id);
+
+        return new Response(JSON.stringify({ saves }), { headers: { "Content-Type": "application/json" } });
     }
 
-    return new Response("Not found", { status: 404, headers: corsHeaders });
+    return new Response("Not found", { status: 404 });
 }
 
 console.log(`Serveur démarré sur le port ${PORT} (Deno Deploy: ${isDenoDeploy})`);
