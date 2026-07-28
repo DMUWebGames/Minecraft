@@ -216,7 +216,10 @@ async function handler(req) {
     if (url.pathname === "/list" && req.method === "GET") {
         const files = [];
         if (isDenoDeploy) {
-            for (const key of inMemorySaves.keys()) files.push(key);
+            const entries = await kv.list({ prefix: ["saves"] });
+            for (const entry of entries) {
+                files.push(entry.key[1]); // On extrait le nom du fichier
+            }
         } else {
             for await (const entry of Deno.readDir(SAVES_DIR)) {
                 if (entry.isFile && entry.name.endsWith(".json")) {
