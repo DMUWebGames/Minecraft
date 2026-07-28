@@ -37,6 +37,7 @@ function getOrCreateRoom(roomId) {
         console.log(`🏠 Création de la salle ${roomId}`);
     }
     return rooms.get(roomId);
+    console.log(rooms.get(roomId));
 }
 
 async function handler(req) {
