@@ -53,14 +53,23 @@ async function handler(req) {
         const { socket, response } = Deno.upgradeWebSocket(req);
         const room = getOrCreateRoom(requestedRoom);
 
-        socket.onopen = () => {
+        socket.onopen = async () => {
             console.log(`📱 Joueur connecté à la salle : ${requestedRoom}`);
             room.sockets.add(socket);
             socket.currentRoom = requestedRoom;
-            room.playerData.set(socket, { x: 0, y: 0, z: 0 });
+            room.playerData.set(socket, { x: 0, y: 0, z: 0, name : "Joueur" });
+
+            // NOUVEAU : On charge la room depuis la sauvegarde si elle existe
+            if (room.blocks.length === 0) {
+                const savedBlocks = await loadRoom(requestedRoom);
+                if (savedBlocks) {
+                    room.blocks = savedBlocks;
+                    console.log(`📂 Room ${requestedRoom} restaurée (${savedBlocks.length} blocs)`);
+                }
+            }
+
             // On envoie LES BLOCS DE CETTE ROOM, pas d'une autre
             socket.send(JSON.stringify({ type: "world_sync", blocks: room.blocks }));
-
             playerdata.set(socket, { x: 0, y: 0, z: 0, name: "Joueur" });
         };
 
@@ -139,6 +148,7 @@ async function handler(req) {
                 myRoom.sockets.delete(socket);
                 myRoom.playerData.delete(socket);
                 if (myRoom.sockets.size === 0) {
+                    saveRoom(socket.currentRoom, myRoom.blocks);
                     rooms.delete(socket.currentRoom);
                     console.log(`🏠 Salle ${socket.currentRoom} détruite (vide).`);
                 }
@@ -217,6 +227,36 @@ async function handler(req) {
     }
 
     return new Response("Not found", { status: 404, headers: corsHeaders });
+}
+
+// --- SAUVEGARDE / CHARGEMENT DES ROOMS ---
+async function saveRoom(roomId, blocks) {
+    const saveKey = `room_${roomId}`;
+    const data = JSON.stringify({ blocks: blocks });
+    
+    if (isDenoDeploy) {
+        inMemorySaves.set(saveKey, data);
+    } else {
+        try {
+            await Deno.writeTextFile(`${SAVES_DIR}/${saveKey}.json`, data);
+        } catch(e) { console.error("Erreur sauvegarde room:", e); }
+    }
+}
+
+async function loadRoom(roomId) {
+    const saveKey = `room_${roomId}`;
+    try {
+        let content;
+        if (isDenoDeploy) {
+            content = inMemorySaves.get(saveKey);
+            if (!content) return null;
+        } else {
+            content = await Deno.readTextFile(`${SAVES_DIR}/${saveKey}.json`);
+        }
+        return JSON.parse(content).blocks;
+    } catch(e) {
+        return null; // Aucune sauvegarde trouvée, c'est normal
+    }
 }
 
 console.log(`Serveur démarré sur le port ${PORT} (Deno Deploy: ${isDenoDeploy})`);
