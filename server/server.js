@@ -230,7 +230,30 @@ async function handler(req) {
         }
         return new Response(JSON.stringify({ saves: files }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    //
+    try{
+        let filePath = decodeURIComponent(url.pathname);
+        if (filePath === "/") filePath = "/index.html"; // Racine = index.html
 
+        if (!filePath.includes("..")){
+            const file = await Deno.readFile("." + filePath);
+
+            let mimeType = "application/octet-stream";
+            if (filePath.endsWith(".html")) mimeType = "text/html";
+            else if (filePath.endsWith(".js")) mimeType = "application/javascript";
+            else if (filePath.endsWith(".css")) mimeType = "text/css";
+            else if (filePath.endsWith(".png")) mimeType = "image/png";
+            else if (filePath.endsWith(".mp3")) mimeType = "audio/mpeg";
+            else if (filePath.endsWith(".json")) mimeType = "application/json";
+
+            return new Response(file, {
+                headers: { "Content-Type": mimeType }
+            });
+        }
+
+    }catch (err) {
+        // Si le fichier n'existe pas, l'erreur est ignorée silencieusement
+    }
     return new Response("Not found", { status: 404, headers: corsHeaders });
 }
 
