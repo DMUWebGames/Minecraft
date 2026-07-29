@@ -33,8 +33,10 @@ window.startMulti = function() {
     } else {
         // CAS 2 : C'EST L'HÔTE QUI CRÉE LA PARTIE
         const roomId = Math.random().toString(36).substring(2, 8).toUpperCase(); 
-        //crypto.randomUUID(); // Génère un identifiant unique pour la partie
         window.currentRoomId = roomId; 
+
+        // NOUVEAU : On met à jour l'URL dans la barre d'adresse du navigateur
+        window.history.replaceState({}, "", `?room=${roomId}`);
         
         const gameUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
         prompt("Partagez ce lien avec vos amis pour rejoindre la partie :", gameUrl);
