@@ -1,5 +1,5 @@
 // js/textureAtlas.js
-import { loadAllTextures } from './textures.js';
+import { loadAllTextures } from 'https://cdn.jsdelivr.net/gh/DMUWebGames/Minecraft@main/js/textures.js';
 
 export async function createTextureAtlas(device) {
     const textureSize = 128;

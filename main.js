@@ -22,10 +22,10 @@ let isPointerLocked = false;
 let otherPlayerPos = { x : 0, y : 0, z : 0};
 let otherPlayerConnected = false;
 
-const soundBreak = new Audio('sounds/break.mp3');
-const soundPlace = new Audio('sounds/place.mp3');
-const soundGlass = new Audio('sounds/glass_break.mp3');
-const soundWood = new Audio('sounds/wood_break.mp3');
+const soundBreak = new Audio('https://cdn.jsdelivr.net/gh/DMUWebGames/Minecraft@main/sounds/break.mp3');
+const soundPlace = new Audio('https://cdn.jsdelivr.net/gh/DMUWebGames/Minecraft@main/sounds/place.mp3');
+const soundGlass = new Audio('https://cdn.jsdelivr.net/gh/DMUWebGames/Minecraft@main/sounds/glass_break.mp3');
+const soundWood = new Audio('https://cdn.jsdelivr.net/gh/DMUWebGames/Minecraft@main/sounds/wood_break.mp3');
 
 // I. Initialisation
 async function main() {

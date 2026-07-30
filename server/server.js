@@ -235,7 +235,16 @@ async function handler(req) {
         let filePath = decodeURIComponent(url.pathname);
         if (filePath === "/") filePath = "/index.html"; // Racine = index.html
 
-        if (!filePath.includes("..")){
+        if (!filePath.includes("..") && !filePath.startsWith("/server/") && !filePath.startsWith("/.git")) {
+
+            // SECURITY & BANDWIDTH SAVING: Block heavy files (they will be loaded from CDN)
+            const heavyFiles = [".png", ".mp3", ".wav", ".jpg"];
+            const isHeavy = heavyFiles.some(ext => filePath.endsWith(ext));
+            
+            if (isHeavy) {
+                return new Response("Use CDN for assets", { status: 403 });
+            }
+
             const file = await Deno.readFile("." + filePath);
 
             let mimeType = "application/octet-stream";

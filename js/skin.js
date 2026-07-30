@@ -12,8 +12,8 @@ export async function createPlayerTexture(device) {
     const bodyImg = new Image();
     
     await Promise.all([
-        new Promise(r => { headImg.onload = r; headImg.src = 'textures/male_head.png'; }),
-        new Promise(r => { bodyImg.onload = r; bodyImg.src = 'textures/male_body.png'; })
+        new Promise(r => { headImg.onload = r; headImg.src = 'https://cdn.jsdelivr.net/gh/DMUWebGames/Minecraft@main/textures/male_head.png'; }),
+        new Promise(r => { bodyImg.onload = r; bodyImg.src = 'https://cdn.jsdelivr.net/gh/DMUWebGames/Minecraft@main/textures/male_body.png'; })
     ]);
 
     // 3. On assemble le personnage
