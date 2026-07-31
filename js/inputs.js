@@ -1,5 +1,5 @@
 // js/inputs.js
-import { BLOCK } from './blocks.js';
+import { BLOCK, getBlockColor  } from './blocks.js';
 import { isChatting } from './chat.js';
 import { saveGame, loadGame } from './save.js';
 
@@ -78,6 +78,28 @@ export function initInputs(state, deps) {
                 const brokenBlockId = world.getBlock(target.x, target.y, target.z);
                 world.setBlock(target.x, target.y, target.z, BLOCK.AIR);
                 modified = true;
+
+                // Break particules
+                const color = getBlockColor(brokenBlockId);
+                for (let i = 0; i < 4; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'break-particle';
+                    
+                    // "calc(50% - 25px)" centre parfaitement le carré de 50px sur le viseur
+                    particle.style.left = 'calc(50% - 25px)'; 
+                    particle.style.top = 'calc(50% - 25px)';
+                    
+                    // Couleur du bloc
+                    particle.style.backgroundColor = `rgb(${color[0]*255}, ${color[1]*255}, ${color[2]*255})`;
+                    
+                    // Écartement très large (120px) pour que ça explose de partout
+                    particle.style.setProperty('--drift-x', `${(Math.random() - 0.5) * 120}px`);
+                    
+                    document.body.appendChild(particle);
+                    
+                    // Nettoyage après 0.6 secondes (600ms) pour matcher la nouvelle animation
+                    setTimeout(() => particle.remove(), 600);
+                }
 
                 if ( brokenBlockId === BLOCK.GLASS) {
                     sounds.glass.cloneNode().play().catch(() => {});
