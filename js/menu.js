@@ -17,10 +17,10 @@ window.startSolo = function() {
 // Fonction appelée par le bouton HTML "Rejoindre"
 window.startMulti = function() {
     // On demande le pseudo ICI
-    window.playerName = prompt("Entrez votre pseudo :", "Joueur") || "Joueur";
+    window.playerName = prompt("Enter your nickname :", "Player") || "Player";
 
     if (!serverIp) {
-        alert("Entrez une adresse IP");
+        alert("Enter a server IP");
         return;
     }
     
@@ -40,7 +40,7 @@ window.startMulti = function() {
         window.history.replaceState({}, "", `?room=${roomId}`);
         
         const gameUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
-        prompt("Partagez ce lien avec vos amis pour rejoindre la partie :", gameUrl);
+        prompt("Share this link with your friends to join the party :", gameUrl);
     }
 
     gameMode = 'multi';
