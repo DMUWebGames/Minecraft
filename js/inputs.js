@@ -30,16 +30,7 @@ export function initInputs(state, deps) {
                 if (target) {
                     world.generateTree(world, target.x, target.z); 
                     // ON RECOPIE LE CODE BRUT ICI
-                    const newVertices = world.buildMesh();
-                    if (newVertices.byteLength > state.vertexBuffer.size) {
-                        state.vertexBuffer.destroy();
-                        state.vertexBuffer = device.createBuffer({
-                            size: newVertices.byteLength,
-                            usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-                        });
-                    }
-                    device.queue.writeBuffer(state.vertexBuffer, 0, newVertices);
-                    state.vertices = newVertices;
+                    window.requestBuildMesh();
                 }
                 break;
             
@@ -47,14 +38,7 @@ export function initInputs(state, deps) {
             case 'F9' : loadGame(player,world).then((loaded)=>{
                 if (loaded) {
                     // ON RECOPIE LE CODE BRUT ICI
-                    const newVertices = world.buildMesh();
-                    state.vertexBuffer.destroy();
-                    state.vertexBuffer = device.createBuffer({
-                        size: newVertices.byteLength,
-                        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-                    });
-                    device.queue.writeBuffer(state.vertexBuffer, 0, newVertices);
-                    state.vertices = newVertices;
+                        window.requestBuildMesh();
                 }
             });
             break;
@@ -122,17 +106,7 @@ export function initInputs(state, deps) {
             
             // ON RECOPIE LE CODE BRUT ICI
             if (modified) {
-                const newVertices = world.buildMesh();
-
-                if (newVertices.byteLength > state.vertexBuffer.size) {
-                    state.vertexBuffer.destroy();
-                    state.vertexBuffer = device.createBuffer({
-                        size: newVertices.byteLength,
-                        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-                    });
-                }
-                device.queue.writeBuffer(state.vertexBuffer, 0, newVertices);
-                state.vertices = newVertices; 
+                window.requestBuildMesh(); 
                 updateLights(); 
 
                 if (network){
